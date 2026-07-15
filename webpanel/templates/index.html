@@ -190,6 +190,7 @@
           <tr><td>Đang chạy</td><td id="s_running">—</td></tr>
           <tr><td>PID</td><td id="s_pid">—</td></tr>
           <tr><td>AccessType</td><td id="s_access">—</td></tr>
+          <tr><td>Region</td><td id="s_region">—</td></tr>
           <tr><td>Giới hạn mặc định</td><td id="s_limit">—</td></tr>
           <tr><td>Signing key (bí mật)</td><td id="s_signing">—</td></tr>
           <tr><td>Verification key</td><td id="s_verify">—</td></tr>
@@ -201,7 +202,17 @@
     <section class="card full">
       <div class="hd"><h2>Tạo mới lại server (generate)</h2></div>
       <div class="bd">
-        <p class="hint" style="margin:0 0 14px;">Xoá config + server entry cũ, sinh lại từ đầu theo protocol/port đang bật, rồi tự start server. <strong style="color:var(--red)">Client cũ phải cập nhật lại server entry</strong> sau bước này. Muốn đổi protocol/port/Region trước khi generate, sửa ở CLI menu [2] (chưa có trên web). <strong>Region là bắt buộc</strong> - nếu chưa đặt, generate ở đây sẽ báo lỗi và bạn cần đặt trước qua CLI.</p>
+        <p class="hint" style="margin:0 0 14px;">Xoá config + server entry cũ, sinh lại từ đầu theo protocol/port đang bật, rồi tự start server. <strong style="color:var(--red)">Client cũ phải cập nhật lại server entry</strong> sau bước này. Muốn đổi protocol/port trước khi generate, sửa ở CLI menu [2] (chưa có trên web).</p>
+
+        <div class="field" style="max-width:220px; margin-bottom:14px;">
+          <label>REGION (bắt buộc trước khi generate, VD: VN, JP, US, SG)</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="regionInput" maxlength="2" placeholder="VN" style="text-transform:uppercase;">
+            <button class="btn" id="btnSetRegion" type="button">Đặt Region</button>
+          </div>
+        </div>
+        <div class="outbox empty" id="regionOut"></div>
+
         <button class="btn danger" id="btnGenerate">⚠ Generate lại server</button>
         <div class="outbox empty" id="generateOut"></div>
       </div>
@@ -368,6 +379,7 @@ async function refreshStatus(){
     $('s_running').innerHTML = s.running ? '<span class="tag yes">● Đang chạy</span>' : '<span class="tag no">● Dừng</span>';
     $('s_pid').textContent = s.pid || '—';
     $('s_access').textContent = s.access_type || '—';
+    $('s_region').innerHTML = s.region ? s.region : '<span class="tag no">✗ Chưa đặt</span>';
     $('s_limit').textContent = (s.default_limit_kbps || '0') + ' KB/s';
     $('s_signing').innerHTML = s.has_signing_key ? '<span class="tag yes">Có</span>' : '<span class="tag no">Không</span>';
     $('s_verify').innerHTML = s.has_verify_key ? '<span class="tag yes">Có</span>' : '<span class="tag no">Không</span>';
@@ -381,10 +393,14 @@ async function refreshStatus(){
     if (!$('limitKbps').dataset.touched){
       $('limitKbps').value = s.default_limit_kbps ?? '';
     }
+    if (!$('regionInput').dataset.touched){
+      $('regionInput').value = s.region || '';
+    }
   }catch(e){ /* đã redirect nếu 401 */ }
 }
 $('accessType').addEventListener('input', e => e.target.dataset.touched = '1');
 $('limitKbps').addEventListener('input', e => e.target.dataset.touched = '1');
+$('regionInput').addEventListener('input', e => { e.target.dataset.touched = '1'; e.target.value = e.target.value.toUpperCase(); });
 
 // ---------------- Controls ----------------
 async function runControl(btn, url, confirmMsg){
@@ -420,6 +436,28 @@ $('importForm').addEventListener('submit', async (e) => {
     refreshStatus();
   }catch(err){
     printOut($('importOut'), {ok:false, output:'Lỗi mạng: ' + err});
+  }
+  btn.disabled = false; btn.textContent = orig;
+});
+
+// ---------------- Set Region ----------------
+$('btnSetRegion').addEventListener('click', async () => {
+  const region = $('regionInput').value.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(region)){
+    printOut($('regionOut'), {ok:false, output:'Region không hợp lệ - cần đúng 2 chữ cái (VD: VN, JP, US, SG).'});
+    return;
+  }
+  const btn = $('btnSetRegion');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Đang đặt...';
+  try{
+    const fd = new FormData(); fd.set('region', region);
+    const res = await fetch('/api/set-region', {method:'POST', body:fd});
+    if (res.status === 401){ window.location.href = '/login'; return; }
+    const r = await res.json();
+    printOut($('regionOut'), r);
+    if (r.ok) refreshStatus();
+  }catch(err){
+    printOut($('regionOut'), {ok:false, output:'Lỗi mạng: ' + err});
   }
   btn.disabled = false; btn.textContent = orig;
 });

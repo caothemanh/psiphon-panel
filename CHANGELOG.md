@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased (3)
+- **Thêm ô nhập Region ngay trên Web Dashboard.** Trước đó Region chỉ đặt
+  được qua CLI (SSH), web chỉ báo lỗi và bắt người dùng tự SSH vào sửa. Giờ
+  card "Tạo mới lại server" có sẵn ô nhập Region + nút "Đặt Region", gọi
+  hàm mới `set_region_core` (validate 2 chữ cái, lưu config ngay, không cần
+  restart vì Region chỉ nhúng vào server entry ở lần generate kế tiếp).
+  `web_status_json` cũng trả thêm field `region` để dashboard hiển thị giá
+  trị hiện tại trong bảng Trạng thái và tự điền sẵn vào ô nhập.
+
 ## Unreleased (2)
 - **Region giờ bắt buộc khi generate.** Trước đây Region optional, dễ quên
   đặt, khiến server entry sinh ra không có field region. `do_generate` (CLI)

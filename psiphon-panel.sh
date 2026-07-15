@@ -230,6 +230,7 @@ web_status_json() {
     WS_WEB_PORT="$WEB_PORT" \
     WS_ACCESS_TYPE="$AUTH_ACCESS_TYPE" \
     WS_LIMIT_KBPS="$DEFAULT_LIMIT_KBPS" \
+    WS_REGION="$REGION" \
     WS_HAS_SIGNING_KEY="$([ -f "$SIGNING_KEY_FILE" ] && echo true || echo false)" \
     WS_HAS_VERIFY_KEY="$([ -f "$VERIFY_KEY_FILE" ] && echo true || echo false)" \
     WS_CONFIG_PATH="$INSTALL_DIR/psiphond.config" \
@@ -254,6 +255,7 @@ print(json.dumps({
     'web_port': os.environ['WS_WEB_PORT'],
     'access_type': os.environ['WS_ACCESS_TYPE'],
     'default_limit_kbps': os.environ['WS_LIMIT_KBPS'],
+    'region': os.environ['WS_REGION'],
     'has_signing_key': os.environ['WS_HAS_SIGNING_KEY'] == 'true',
     'has_verify_key': os.environ['WS_HAS_VERIFY_KEY'] == 'true',
     'verify_key_ring': cfg.get('AccessControlVerificationKeyRing'),
@@ -909,6 +911,25 @@ set_default_limit_core() {
             echo "OK: Server đang dừng sẵn, không cần restart"
         fi
     fi
+    return 0
+}
+
+# Đặt Region cho server (mã 2 chữ cái, VD VN/JP/US) - KHÔNG hỏi gì, dùng cho
+# web dashboard. Không cần restart: Region chỉ có tác dụng ở lần generate
+# TIẾP THEO (đã embed cứng vào server entry lúc generate), đổi ở đây không
+# ảnh hưởng gì tới server đang chạy hiện tại.
+# Tham số: $1 = mã region 2 chữ cái
+set_region_core() {
+    local region="${1^^}"
+
+    if ! [[ "$region" =~ ^[A-Z]{2}$ ]]; then
+        echo "ERR: Region không hợp lệ - cần đúng 2 chữ cái (VD: VN, JP, US, SG)"
+        return 1
+    fi
+
+    REGION="$region"
+    save_config
+    echo "OK: Đã đặt Region = $REGION (áp dụng ở lần generate tiếp theo)"
     return 0
 }
 

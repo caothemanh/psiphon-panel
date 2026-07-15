@@ -231,6 +231,19 @@ def api_import_key():
 
 
 # ----------------------------------------------------------------------
+# API: đặt Region (bắt buộc trước khi generate)
+# ----------------------------------------------------------------------
+@app.route("/api/set-region", methods=["POST"])
+@login_required
+def api_set_region():
+    region = (request.form.get("region") or "").strip()
+    if not region:
+        return jsonify({"ok": False, "output": "Cần nhập Region."}), 400
+    r = run_panel_func("set_region_core", region, timeout=20)
+    return jsonify(r)
+
+
+# ----------------------------------------------------------------------
 # API: generate server (tạo mới lại server entry + config)
 # ----------------------------------------------------------------------
 @app.route("/api/generate", methods=["POST"])

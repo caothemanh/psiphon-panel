@@ -2597,6 +2597,30 @@ print_webpanel_access_info() {
     fi
 }
 
+# Dò tìm 1 bản python3 >= 3.8 để tạo venv cho web dashboard. Flask 3.x /
+# gunicorn 22.x yêu cầu Python >= 3.8; nhiều VPS Ubuntu cũ (18.04 trở
+# xuống) mặc định "python3" là 3.6/3.7 -> "pip install Flask==3.0.3" sẽ
+# báo "Could not find a version that satisfies..." (pip tự lọc bỏ hết bản
+# mới vì không tương thích), rất khó hiểu nếu không biết nguyên nhân là do
+# Python quá cũ chứ không phải do mạng/PyPI. Ưu tiên: interpreter có sẵn
+# mới nhất -> thử apt cài thêm bản mới hơn -> đành dùng bản cũ nhất có.
+pick_python_bin() {
+    local cand best="" best_ver=0 ver
+    for cand in python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3; do
+        command -v "$cand" >/dev/null 2>&1 || continue
+        ver=$("$cand" -c 'import sys; print(sys.version_info.major*100+sys.version_info.minor)' 2>/dev/null) || continue
+        [ -z "$ver" ] && continue
+        if [ "$ver" -ge 308 ]; then echo "$cand"; return 0; fi
+        if [ "$ver" -gt "$best_ver" ]; then best="$cand"; best_ver="$ver"; fi
+    done
+    for pkg in python3.12 python3.11 python3.10 python3.9 python3.8; do
+        if apt-get install -y -qq "$pkg" "${pkg}-venv" >/dev/null 2>&1 && command -v "$pkg" >/dev/null 2>&1; then
+            echo "$pkg"; return 0
+        fi
+    done
+    echo "${best:-python3}"
+}
+
 install_web_dashboard() {
     header
     echo -e "${W}${BOLD}  CÀI ĐẶT WEB DASHBOARD${N}"
@@ -2628,18 +2652,21 @@ install_web_dashboard() {
     echo -e "${G}  ✓ OK (/usr/local/bin/psiphon-panel)${N}"
 
     echo -e "${Y}  [3/6] Cài Python venv + dependencies (có thể mất chút thời gian)...${N}"
+    local pybin
+    pybin=$(pick_python_bin)
+    echo -e "  Dùng interpreter: ${G}$pybin${N} ($($pybin --version 2>&1))"
     rm -rf "$WEBPANEL_DIR/venv"
-    python3 -m venv "$WEBPANEL_DIR/venv" 2>/tmp/psiphon-venv-err.log
+    "$pybin" -m venv "$WEBPANEL_DIR/venv" 2>/tmp/psiphon-venv-err.log
     if [ ! -x "$WEBPANEL_DIR/venv/bin/pip" ]; then
         # Ubuntu/Debian: gói "python3-venv" đôi khi không kéo theo đúng bản
         # "python3.X-venv" cần cho ensurepip -> venv tạo ra nhưng thiếu pip.
-        # Dò đúng version python3 đang chạy rồi cài đúng gói đó.
+        # Dò đúng version đang dùng rồi cài đúng gói đó.
         local pyver
-        pyver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        pyver=$("$pybin" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
         echo -e "${Y}  venv thiếu ensurepip, thử cài python${pyver}-venv...${N}"
         apt-get install -y -qq "python${pyver}-venv" >/dev/null 2>&1
         rm -rf "$WEBPANEL_DIR/venv"
-        python3 -m venv "$WEBPANEL_DIR/venv" 2>/tmp/psiphon-venv-err.log
+        "$pybin" -m venv "$WEBPANEL_DIR/venv" 2>/tmp/psiphon-venv-err.log
     fi
     if [ ! -x "$WEBPANEL_DIR/venv/bin/pip" ]; then
         echo -e "${R}  ✗ Không tạo được venv (thiếu pip trong venv). Lỗi:${N}"
@@ -2648,9 +2675,21 @@ install_web_dashboard() {
         press_enter; return 1
     fi
     "$WEBPANEL_DIR/venv/bin/pip" install --quiet --upgrade pip
-    if ! "$WEBPANEL_DIR/venv/bin/pip" install --quiet -r "$WEBPANEL_DIR/requirements.txt"; then
-        echo -e "${R}  ✗ Cài dependencies thất bại.${N}"
-        press_enter; return 1
+    if ! "$WEBPANEL_DIR/venv/bin/pip" install --quiet -r "$WEBPANEL_DIR/requirements.txt" 2>/tmp/psiphon-pip-err.log; then
+        # Interpreter tìm được vẫn cũ hơn 3.8 (không apt cài thêm được bản
+        # nào mới hơn, VD VPS không có internet ra ngoài apt mirror chuẩn)
+        # -> pip lọc bỏ hết Flask/gunicorn bản mới. Hạ xuống dải version cũ
+        # hơn nhưng vẫn còn được hỗ trợ, thay vì fail cứng không cài được gì.
+        echo -e "${Y}  ⚠ Cài bản pin trong requirements.txt thất bại (có thể do Python < 3.8: $($pybin --version 2>&1)).${N}"
+        echo -e "${Y}  Thử lại với dải version cũ hơn, tương thích rộng hơn...${N}"
+        if ! "$WEBPANEL_DIR/venv/bin/pip" install --quiet "Flask>=2.0,<3" "gunicorn>=20,<21" 2>>/tmp/psiphon-pip-err.log; then
+            echo -e "${R}  ✗ Cài dependencies thất bại. Lỗi:${N}"
+            sed 's/^/    /' /tmp/psiphon-pip-err.log | tail -20
+            echo -e "${Y}  VPS đang dùng Python quá cũ ($($pybin --version 2>&1)). Cách khắc phục lâu dài:${N}"
+            echo -e "${Y}  apt install python3.10 python3.10-venv   rồi vào lại menu này để dùng bản Python mới hơn.${N}"
+            press_enter; return 1
+        fi
+        echo -e "${Y}  ✓ Đã cài bản Flask/gunicorn cũ hơn (tương thích Python < 3.8). Nên nâng cấp Python khi có dịp.${N}"
     fi
     echo -e "${G}  ✓ OK${N}"
 

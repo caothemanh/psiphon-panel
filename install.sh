@@ -13,6 +13,28 @@ fail() { echo -e "${R}  ✗ $1${N}"; exit 1; }
 
 [ "$EUID" -ne 0 ] && fail "Cần chạy với quyền root (sudo bash install.sh)"
 
+# Dò tìm 1 bản python3 >= 3.8 để tạo venv. Flask 3.x/gunicorn 22.x yêu cầu
+# Python >= 3.8; VPS Ubuntu cũ (18.04 trở xuống) mặc định "python3" là
+# 3.6/3.7 khiến "pip install Flask==3.0.3" báo "Could not find a version
+# that satisfies..." - trông như lỗi mạng/PyPI nhưng thực ra do Python quá
+# cũ bị pip tự lọc bỏ hết bản mới.
+pick_python_bin() {
+    local cand best="" best_ver=0 ver
+    for cand in python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3; do
+        command -v "$cand" >/dev/null 2>&1 || continue
+        ver=$("$cand" -c 'import sys; print(sys.version_info.major*100+sys.version_info.minor)' 2>/dev/null) || continue
+        [ -z "$ver" ] && continue
+        if [ "$ver" -ge 308 ]; then echo "$cand"; return 0; fi
+        if [ "$ver" -gt "$best_ver" ]; then best="$cand"; best_ver="$ver"; fi
+    done
+    for pkg in python3.12 python3.11 python3.10 python3.9 python3.8; do
+        if apt-get install -y -qq "$pkg" "${pkg}-venv" >/dev/null 2>&1 && command -v "$pkg" >/dev/null 2>&1; then
+            echo "$pkg"; return 0
+        fi
+    done
+    echo "${best:-python3}"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$SCRIPT_DIR/psiphon-panel.sh" ] || fail "Không thấy psiphon-panel.sh trong $SCRIPT_DIR"
 [ -d "$SCRIPT_DIR/webpanel" ] || fail "Không thấy thư mục webpanel/ trong $SCRIPT_DIR"
@@ -47,17 +69,19 @@ apt-get install -y -qq python3 python3-venv python3-pip >/dev/null 2>&1 || true
 if ! command -v python3 >/dev/null 2>&1; then
     fail "Chưa có python3, cài trước: apt install -y python3 python3-venv"
 fi
+PYBIN=$(pick_python_bin)
+echo -e "  ${C}Dùng interpreter: $PYBIN ($($PYBIN --version 2>&1))${N}"
 rm -rf "$APP_DIR/venv"
-python3 -m venv "$APP_DIR/venv" 2>/tmp/psiphon-venv-err.log
+"$PYBIN" -m venv "$APP_DIR/venv" 2>/tmp/psiphon-venv-err.log
 if [ ! -x "$APP_DIR/venv/bin/pip" ]; then
     # Ubuntu/Debian: gói "python3-venv" đôi khi không kéo theo đúng bản
     # "python3.X-venv" cần cho ensurepip -> venv tạo ra nhưng thiếu pip.
-    # Dò đúng version python3 đang chạy rồi cài đúng gói đó.
-    PYVER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    # Dò đúng version đang dùng rồi cài đúng gói đó.
+    PYVER=$("$PYBIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
     echo -e "  ${Y}venv thiếu ensurepip, thử cài python${PYVER}-venv...${N}"
     apt-get install -y -qq "python${PYVER}-venv" >/dev/null 2>&1 || true
     rm -rf "$APP_DIR/venv"
-    python3 -m venv "$APP_DIR/venv" 2>/tmp/psiphon-venv-err.log
+    "$PYBIN" -m venv "$APP_DIR/venv" 2>/tmp/psiphon-venv-err.log
 fi
 if [ ! -x "$APP_DIR/venv/bin/pip" ]; then
     echo -e "${R}  ✗ Không tạo được venv (thiếu pip trong venv). Lỗi:${N}"
@@ -65,7 +89,19 @@ if [ ! -x "$APP_DIR/venv/bin/pip" ]; then
     fail "Thử cài tay: apt install python${PYVER:-3}-venv    rồi chạy lại install.sh"
 fi
 "$APP_DIR/venv/bin/pip" install --quiet --upgrade pip
-"$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
+if ! "$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt" 2>/tmp/psiphon-pip-err.log; then
+    # Interpreter cũ hơn 3.8 và không apt cài thêm được bản mới hơn (VD
+    # không có internet ra ngoài apt mirror chuẩn) -> pip lọc bỏ hết bản
+    # Flask/gunicorn mới. Hạ xuống dải version cũ hơn thay vì fail cứng.
+    echo -e "  ${Y}⚠ Cài bản pin trong requirements.txt thất bại (có thể do Python < 3.8: $($PYBIN --version 2>&1)).${N}"
+    echo -e "  ${Y}Thử lại với dải version cũ hơn, tương thích rộng hơn...${N}"
+    if ! "$APP_DIR/venv/bin/pip" install --quiet "Flask>=2.0,<3" "gunicorn>=20,<21" 2>>/tmp/psiphon-pip-err.log; then
+        echo -e "${R}  ✗ Cài dependencies thất bại. Lỗi:${N}"
+        sed 's/^/    /' /tmp/psiphon-pip-err.log | tail -20
+        fail "VPS đang dùng Python quá cũ ($($PYBIN --version 2>&1)). Cài: apt install python3.10 python3.10-venv   rồi chạy lại install.sh"
+    fi
+    echo -e "  ${Y}✓ Đã cài bản Flask/gunicorn cũ hơn (tương thích Python < 3.8). Nên nâng cấp Python khi có dịp.${N}"
+fi
 ok "Đã cài venv + Flask/gunicorn"
 
 # ---------------------------------------------------------------

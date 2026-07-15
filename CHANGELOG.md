@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased (7)
+- **Sửa lỗi cài dependencies thất bại trên VPS Python cũ.**
+  `pip install Flask==3.0.3` báo `Could not find a version that satisfies
+  the requirement...` trên các VPS Ubuntu cũ (18.04 trở xuống, mặc định
+  `python3` là 3.6/3.7) - nhìn giống lỗi mạng/PyPI nhưng thực chất do
+  Flask 3.x/gunicorn 22.x yêu cầu Python >= 3.8, pip tự lọc bỏ hết bản mới
+  không tương thích. Thêm hàm `pick_python_bin()` (cả trong
+  `install_web_dashboard()` và `install.sh`): tự dò interpreter `python3.8`
+  → `python3.13` mới nhất có sẵn trên máy, nếu không có thì thử `apt-get
+  install` thêm 1 bản mới hơn, dùng interpreter đó để tạo venv thay vì
+  cứng `python3` mặc định. Nếu vẫn không tìm/cài được Python >= 3.8 (VD
+  không có internet ra ngoài apt mirror), tự động hạ xuống dải version cũ
+  hơn còn tương thích (`Flask>=2.0,<3`, `gunicorn>=20,<21`) thay vì fail
+  cứng không cài được gì, kèm gợi ý nâng cấp Python khi có dịp.
+
 ## Unreleased (6)
 - Mở rộng danh sách dọn dẹp ở `[9] Gỡ cài đặt`: rà lại toàn bộ script tìm
   mọi chỗ từng ghi file ra NGOÀI `$INSTALL_DIR`/`$PANEL_DIR`, phát hiện

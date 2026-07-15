@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased (6)
+- Mở rộng danh sách dọn dẹp ở `[9] Gỡ cài đặt`: rà lại toàn bộ script tìm
+  mọi chỗ từng ghi file ra NGOÀI `$INSTALL_DIR`/`$PANEL_DIR`, phát hiện
+  thêm 4 file bị bỏ sót ở lần sửa trước - đều nằm trong `/root`:
+  `server-entry-export.txt` (export server entry thủ công ở menu Xem
+  Entry), `psiphon-verification-key-export.json` (export verification key
+  để copy sang VPS thứ 2), `authorizations.json` và
+  `authorizations-blocks.json` (log token psiphonAuth đã cấp). Giờ cả 5
+  file `/root/*` liên quan tới psiphon đều bị xoá khi gỡ cài đặt.
+
+## Unreleased (5)
+- **Sửa menu `[9] Gỡ cài đặt` bỏ sót Web Dashboard.** Trước đây chỉ gỡ
+  psiphond (service, `$INSTALL_DIR`, `$PANEL_DIR`, `/usr/local/bin/
+  psiphon-panel`) - nếu đã cài Web Dashboard thì service `psiphon-dashboard`
+  vẫn chạy, `/opt/psiphon-dashboard` + `/etc/psiphon-dashboard.env` vẫn còn
+  nguyên, dashboard vẫn truy cập được bình thường dù panel báo "gỡ hoàn
+  tất". Giờ gỡ luôn Web Dashboard nếu phát hiện đã cài.
+- Thêm `force_cleanup_psiphond` trước khi gỡ (thay vì chỉ `systemctl stop`)
+  để không bỏ sót tiến trình `psiphond` mồ côi không do systemd quản lý.
+- Dọn thêm các file rác nằm NGOÀI `$INSTALL_DIR`/`$PANEL_DIR` mà các bước
+  generate/venv trước đó để lại: `/root/server-entry.dat`,
+  `/tmp/psiphon-generate.log`, `/tmp/psiphon-venv-err.log`,
+  `/tmp/psiphon-panel-update-err.log`.
+- Thêm bước hỏi riêng: đóng các port UFW đã mở cho protocol/web/dashboard
+  (không đụng port 22/SSH) - không tự làm ngầm vì có thể ảnh hưởng rule
+  khác người dùng đang cần.
+
 ## Unreleased (4)
 - **Sửa lỗi `SyntaxError: Unexpected token '<'` khi gọi API từ web.** Trước
   đây mọi handler JS gọi `fetch(...).json()` trực tiếp - nếu backend trả về

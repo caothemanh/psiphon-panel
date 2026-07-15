@@ -2493,16 +2493,68 @@ menu_uninstall() {
     echo -e "${C}  ─────────────────────────────────────────────────${N}"
     echo ""
     echo -e "${R}  CẢNH BÁO: Xóa toàn bộ Psiphon Server & cấu hình!${N}"
+    if is_webpanel_installed; then
+        echo -e "${R}  Web Dashboard đang cài (${WEBPANEL_DIR}) cũng sẽ bị gỡ theo.${N}"
+    fi
     echo ""
     confirm "  Chắc chắn gỡ cài đặt?" || return
     confirm "  Xác nhận lần 2?" || return
 
-    systemctl stop psiphond 2>/dev/null
+    # Dọn sạch tiến trình psiphond trước - "systemctl stop" đơn thuần có thể
+    # bỏ sót tiến trình mồ côi (VD trước đó chạy tay "./psiphond run" rồi
+    # tắt terminal sai cách), để lại tiến trình sống nhăn sau khi "gỡ xong".
+    force_cleanup_psiphond
     systemctl disable psiphond 2>/dev/null
     rm -f "$SERVICE_FILE"
+
+    # Trước đây menu này CHỈ gỡ psiphond, bỏ sót hoàn toàn Web Dashboard
+    # (service "psiphon-dashboard" vẫn chạy, /opt/psiphon-dashboard vẫn còn)
+    # -> người dùng tưởng đã gỡ sạch nhưng dashboard vẫn truy cập được bình
+    # thường. Giờ gỡ luôn nếu có cài.
+    if is_webpanel_installed || is_webpanel_running; then
+        echo -e "${Y}  Đang gỡ Web Dashboard...${N}"
+        systemctl disable --now psiphon-dashboard >/dev/null 2>&1
+        rm -f "$WEBPANEL_SERVICE_FILE" "$WEBPANEL_ENV"
+        rm -rf "$WEBPANEL_DIR"
+        echo -e "${G}  ✓ Đã gỡ Web Dashboard${N}"
+    fi
+
     systemctl daemon-reload
     rm -rf "$INSTALL_DIR" "$PANEL_DIR"
     rm -f "$LOG_FILE" /usr/local/bin/psiphon-panel
+
+    # Dọn các file rác để lại rải rác NGOÀI INSTALL_DIR/PANEL_DIR - đây là
+    # toàn bộ danh sách file mà psiphon-panel.sh từng ghi ra bên ngoài 2 thư
+    # mục đó qua các thao tác export/copy thủ công (generate, export
+    # verification key, export server entry, log token đã cấp...). Bỏ sót
+    # bất kỳ cái nào cũng coi như "gỡ không hết" vì đây đều là dữ liệu do
+    # chính panel sinh ra.
+    rm -f /root/server-entry.dat \
+          /root/server-entry-export.txt \
+          /root/psiphon-verification-key-export.json \
+          /root/authorizations.json \
+          /root/authorizations-blocks.json \
+          /tmp/psiphon-generate.log \
+          /tmp/psiphon-venv-err.log \
+          /tmp/psiphon-panel-update-err.log
+
+    # Port đã mở qua UFW (protocol/web/dashboard) không tự đóng, vì có thể
+    # ảnh hưởng tới rule khác người dùng đang cần - hỏi riêng, không đóng
+    # ngầm. KHÔNG đụng tới cổng 22 (SSH) dù có trùng port nào đó.
+    if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+        if confirm "  Đóng luôn các port UFW đã mở cho Psiphon/Dashboard (trừ port 22)?"; then
+            for entry in "${PROTO_LIST[@]}"; do
+                local proto port enabled
+                IFS=':' read -r proto port enabled <<< "$entry"
+                [ "$port" = "22" ] && continue
+                ufw delete allow "$port"/tcp >/dev/null 2>&1
+                ufw delete allow "$port"/udp >/dev/null 2>&1
+            done
+            [ -n "$WEB_PORT" ] && [ "$WEB_PORT" != "22" ] && ufw delete allow "$WEB_PORT"/tcp >/dev/null 2>&1
+            [ -n "$WEBPANEL_PORT" ] && [ "$WEBPANEL_PORT" != "22" ] && ufw delete allow "$WEBPANEL_PORT"/tcp >/dev/null 2>&1
+            echo -e "${G}  ✓ Đã đóng các port liên quan (giữ nguyên port 22)${N}"
+        fi
+    fi
 
     echo ""
     echo -e "${G}  ✓ Gỡ cài đặt hoàn tất!${N}"

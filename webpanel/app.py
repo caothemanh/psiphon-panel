@@ -229,6 +229,81 @@ def api_import_key():
             os.remove(tmp_path)
 
 
+
+# ----------------------------------------------------------------------
+# API: generate server (tạo mới lại server entry + config)
+# ----------------------------------------------------------------------
+@app.route("/api/generate", methods=["POST"])
+@login_required
+def api_generate():
+    # Thao tác phá hoại (xoá config/entry cũ, sinh key mới) - bắt buộc
+    # frontend phải gửi kèm confirm=1 (sau khi người dùng bấm xác nhận),
+    # không chỉ dựa vào JS confirm() phía client.
+    if request.form.get("confirm") != "1":
+        return jsonify({"ok": False, "output": "Cần xác nhận trước khi generate (config cũ sẽ bị xoá)."}), 400
+    r = run_panel_func("do_generate_core", timeout=90)
+    return jsonify(r)
+
+
+# ----------------------------------------------------------------------
+# API: xem / tải server entry
+# ----------------------------------------------------------------------
+@app.route("/api/server-entry")
+@login_required
+def api_server_entry():
+    r = run_panel_func("web_server_entry_info", timeout=15)
+    if not r["ok"]:
+        return jsonify({"exists": False, "error": r["output"]})
+    try:
+        return jsonify(json.loads(r["output"]))
+    except json.JSONDecodeError:
+        return jsonify({"exists": False, "error": "Phản hồi không phải JSON hợp lệ"})
+
+
+@app.route("/api/server-entry/download")
+@login_required
+def api_server_entry_download():
+    r = run_panel_func("web_server_entry_info", timeout=15)
+    try:
+        data = json.loads(r["output"])
+    except Exception:
+        data = {}
+    if not data.get("exists"):
+        return jsonify({"error": "Chưa có server entry"}), 404
+    from flask import Response
+    return Response(
+        data.get("hex", ""),
+        mimetype="text/plain",
+        headers={"Content-Disposition": "attachment; filename=server-entry.txt"},
+    )
+
+
+# ----------------------------------------------------------------------
+# API: generate signing keypair (psiphonAuth)
+# ----------------------------------------------------------------------
+@app.route("/api/generate-keypair", methods=["POST"])
+@login_required
+def api_generate_keypair():
+    do_restart_flag = "1" if request.form.get("restart") in ("1", "true", "on") else "0"
+    force_overwrite = "1" if request.form.get("force_overwrite") in ("1", "true", "on") else "0"
+    r = run_panel_func("generate_signing_keypair_core", do_restart_flag, force_overwrite, timeout=45)
+    return jsonify(r)
+
+
+# ----------------------------------------------------------------------
+# API: đặt giới hạn băng thông mặc định
+# ----------------------------------------------------------------------
+@app.route("/api/set-limit", methods=["POST"])
+@login_required
+def api_set_limit():
+    kbps = (request.form.get("kbps") or "").strip()
+    do_restart_flag = "1" if request.form.get("restart") in ("1", "true", "on") else "0"
+    if not kbps.isdigit():
+        return jsonify({"ok": False, "output": "KB/s phải là số nguyên >= 0."}), 400
+    r = run_panel_func("set_default_limit_core", kbps, do_restart_flag, timeout=45)
+    return jsonify(r)
+
+
 if __name__ == "__main__":
     # Chạy dev server, bind localhost mặc định (an toàn hơn). Production nên
     # dùng gunicorn qua systemd unit đi kèm (xem README) + reverse proxy TLS.

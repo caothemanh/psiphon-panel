@@ -1,6 +1,16 @@
 # Changelog
 
 ## Unreleased
+- Web Dashboard giờ có đủ các thao tác chính như CLI: **Generate lại server**,
+  **xem/copy/tải server entry**, **sinh signing keypair (psiphonAuth)**, và
+  **đặt giới hạn băng thông mặc định** — không chỉ xem/start/stop/restart/
+  import key như trước. Mọi thao tác đều gọi lại đúng hàm "core" (không hỏi
+  gì) đã tách ra từ logic CLI tương ứng (`do_generate_core`,
+  `generate_signing_keypair_core`, `set_default_limit_core`,
+  `web_server_entry_info`), nên không lệch bug so với bản CLI.
+- Các thao tác phá hoại (generate xoá config cũ, ghi đè signing key) đều bắt
+  buộc xác nhận ở CẢ frontend (confirm dialog) lẫn backend (tham số
+  `confirm`/`force_overwrite` riêng), không chỉ dựa vào JS phía client.
 - Thêm `[8] Cập nhật Panel` vào menu chính: tải bản mới nhất từ GitHub, kiểm
   tra cú pháp trước khi thay thế, tự khởi động lại. Trước đây lệnh
   `psiphon-panel` cache vĩnh viễn bản lúc cài đầu tiên, các bản vá sau đó

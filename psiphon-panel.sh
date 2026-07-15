@@ -635,23 +635,58 @@ generate_signing_keypair() {
         confirm "  Vẫn tiếp tục ghi đè?" || return 1
     fi
 
+    local do_restart_flag=0
+    if is_running && confirm "  Restart server để áp dụng ngay sau khi sinh key?"; then
+        do_restart_flag=1
+    fi
+
+    generate_signing_keypair_core "$do_restart_flag" "1"
+    press_enter
+}
+
+# Phần LÕI sinh keypair, KHÔNG hỏi gì (không confirm ghi đè, không hỏi
+# restart) - dùng cho web dashboard. In "OK: ..."/"ERR: ..." ra stdout.
+# Tham số: $1 = "1" nếu muốn tự restart server sau khi sinh key.
+#          $2 = "1" nếu ĐỒNG Ý ghi đè signing key đã có (bắt buộc phải
+#               truyền đúng "1" nếu đã tồn tại key, để tránh caller nào đó
+#               vô tình ghi đè và vô hiệu hoá toàn bộ token cũ).
+generate_signing_keypair_core() {
+    local do_restart_flag="$1" force_overwrite="$2"
+
+    if [ -f "$SIGNING_KEY_FILE" ] && [ "$force_overwrite" != "1" ]; then
+        echo "ERR: Đã có signing key. Ghi đè sẽ vô hiệu hoá TẤT CẢ token cũ - cần xác nhận force_overwrite=1"
+        return 1
+    fi
+
+    ensure_authgen || { echo "ERR: Không có psiphon-authgen (xem hướng dẫn build tool)"; return 1; }
+
     "$AUTHGEN_BINARY" gen-keys "$AUTH_ACCESS_TYPE" "$SIGNING_KEY_FILE" "$VERIFY_KEY_FILE"
     if [ $? -ne 0 ]; then
-        echo -e "${R}  Sinh keypair thất bại.${N}"; press_enter; return 1
+        echo "ERR: Sinh keypair thất bại"
+        return 1
     fi
 
     chmod 600 "$SIGNING_KEY_FILE"
-    echo -e "${G}  ✓ Đã sinh keypair. AccessType: $AUTH_ACCESS_TYPE${N}"
-    echo -e "${Y}  $SIGNING_KEY_FILE là BÍ MẬT - không chia sẻ, không đưa lên client.${N}"
+    echo "OK: Đã sinh keypair. AccessType: $AUTH_ACCESS_TYPE"
+    echo "OK: $SIGNING_KEY_FILE là BÍ MẬT - không chia sẻ, không đưa lên client"
 
     write_traffic_rules
     inject_server_config
-    echo -e "${G}  ✓ Đã cập nhật traffic-rules.json + psiphond.config${N}"
+    echo "OK: Đã cập nhật traffic-rules.json + psiphond.config"
 
-    if is_running && confirm "  Restart server để áp dụng?"; then
-        do_restart
+    if [ "$do_restart_flag" = "1" ]; then
+        if is_running; then
+            if do_restart; then
+                echo "OK: Đã restart"
+            else
+                echo "ERR: Restart thất bại - SERVER CÓ THỂ ĐANG DỪNG, kiểm tra: systemctl status psiphond"
+                return 1
+            fi
+        else
+            echo "OK: Server đang dừng sẵn, không cần restart"
+        fi
     fi
-    press_enter
+    return 0
 }
 
 # Ghi/sửa giới hạn số thiết bị cho 1 authorization ID cụ thể vào
@@ -840,6 +875,64 @@ list_auth_tokens() {
     press_enter
 }
 
+# Đặt lại giới hạn băng thông mặc định (KB/s, 0 = tắt limit) - KHÔNG hỏi gì,
+# dùng cho web dashboard. In "OK: ..."/"ERR: ..." ra stdout.
+# Tham số: $1 = số KB/s (số nguyên >= 0)
+#          $2 = "1" nếu muốn tự restart server sau khi áp dụng
+set_default_limit_core() {
+    local kbps="$1" do_restart_flag="$2"
+
+    if ! [[ "$kbps" =~ ^[0-9]+$ ]]; then
+        echo "ERR: Giá trị KB/s không hợp lệ: $kbps"
+        return 1
+    fi
+
+    DEFAULT_LIMIT_KBPS="$kbps"
+    save_config
+    write_traffic_rules
+    echo "OK: Đã đặt giới hạn mặc định = ${kbps} KB/s (0 = tắt)"
+    echo "OK: Đã cập nhật traffic-rules.json"
+
+    if [ -f "$INSTALL_DIR/psiphond.config" ]; then
+        inject_server_config
+    fi
+
+    if [ "$do_restart_flag" = "1" ]; then
+        if is_running; then
+            if do_restart; then
+                echo "OK: Đã restart"
+            else
+                echo "ERR: Restart thất bại - SERVER CÓ THỂ ĐANG DỪNG, kiểm tra: systemctl status psiphond"
+                return 1
+            fi
+        else
+            echo "OK: Server đang dừng sẵn, không cần restart"
+        fi
+    fi
+    return 0
+}
+
+# In thông tin server entry (JSON) cho web dashboard: có tồn tại không,
+# thông tin human-readable (từ patch_entry.py show), và nội dung hex đầy đủ
+# (để hiển thị/copy/tải trên web).
+web_server_entry_info() {
+    if [ ! -f "$ENTRY_PATCHED" ]; then
+        echo '{"exists": false}'
+        return 0
+    fi
+    local info hex
+    info=$(python3 "$PATCH_SCRIPT" show "$ENTRY_PATCHED" 2>/dev/null)
+    hex=$(cat "$ENTRY_PATCHED")
+    ENTRY_INFO_TEXT="$info" ENTRY_HEX_TEXT="$hex" python3 -c "
+import json, os
+print(json.dumps({
+    'exists': True,
+    'info': os.environ.get('ENTRY_INFO_TEXT', ''),
+    'hex': os.environ.get('ENTRY_HEX_TEXT', ''),
+}))
+"
+}
+
 menu_limit_auth() {
     while true; do
         header
@@ -878,13 +971,11 @@ menu_limit_auth() {
                 echo -ne "  ${Y}Giới hạn KB/s (0 = không giới hạn) [$DEFAULT_LIMIT_KBPS]: ${N}"
                 read -r inp
                 if [[ "$inp" =~ ^[0-9]+$ ]]; then
-                    DEFAULT_LIMIT_KBPS="$inp"
-                    save_config
-                    write_traffic_rules
-                    echo -e "${G}  ✓ Đã cập nhật traffic-rules.json${N}"
+                    local do_restart_flag=0
                     if is_running && confirm "  Restart server để áp dụng ngay?"; then
-                        do_restart
+                        do_restart_flag=1
                     fi
+                    set_default_limit_core "$inp" "$do_restart_flag"
                 fi
                 press_enter ;;
             2) generate_signing_keypair ;;
@@ -1672,32 +1763,17 @@ do_generate() {
     echo -e "${C}  ─────────────────────────────────────────────────${N}"
     echo ""
 
-    # An toàn: đồng bộ lại port/trạng thái share-port trước khi generate,
-    # phòng trường hợp panel.conf bị sửa tay gây lệch.
     sync_shared_meek_children
-
-    # Chỉ CẢNH BÁO nếu có nhóm protocol đang BẬT trùng port — generate vẫn
-    # tiếp tục, nhưng psiphond nhiều khả năng sẽ lỗi bind port khi start.
     warn_all_port_conflicts
     echo ""
 
-    # Build --protocol proto:port cho từng protocol đang BẬT.
-    # Lưu ý: các protocol trong SHARED_MEEK_PORT_PROTOS (VD FRONTED-MEEK-QUIC-OSSH)
-    # KHÔNG tạo listener riêng — psiphond bỏ qua bind port cho chúng (xác nhận
-    # trong tunnelServer.go: TunnelProtocolUsesFrontedMeekNonHTTPS -> continue).
-    # Vẫn cần truyền --protocol cho chúng vì đó là cách duy nhất để psiphond
-    # thêm capability "FRONTED-MEEK-QUIC" vào server entry cho client biết.
     local proto_args=""
     local has_proto=false
     for entry in "${PROTO_LIST[@]}"; do
         local proto port enabled
         IFS=':' read -r proto port enabled <<< "$entry"
-        if [ "$enabled" = "true" ]; then
-            proto_args="$proto_args --protocol $proto:$port"
-            has_proto=true
-        fi
+        [ "$enabled" = "true" ] && has_proto=true
     done
-
     if ! $has_proto; then
         echo -e "${R}  Chưa bật protocol nào! Vào menu [2] để bật ít nhất 1 protocol.${N}"
         press_enter; return
@@ -1734,61 +1810,78 @@ do_generate() {
     confirm "  Xác nhận generate? (config cũ sẽ bị xóa)" || return
 
     echo ""
-    echo -e "${Y}  [1/3] Dọn sạch tiến trình psiphond cũ trước khi động vào file...${N}"
-    # QUAN TRỌNG: nếu process cũ vẫn chạy trong lúc xóa/ghi đè config, dễ gây
-    # trạng thái không nhất quán (process cũ giữ port, hoặc đọc file đang bị
-    # xóa dở). Dọn sạch bằng đúng logic force_cleanup_psiphond (SIGTERM ->
-    # chờ -> SIGKILL) trước khi làm gì khác.
-    force_cleanup_psiphond
-    echo -e "${G}  ✓ OK${N}"
+    if ! do_generate_core; then
+        press_enter; return 1
+    fi
+    press_enter
+}
 
-    echo -e "${Y}  [2/3] Xóa config cũ...${N}"
+# Phần LÕI của generate, KHÔNG hỏi gì (không confirm) - dùng cho web dashboard
+# hoặc gọi lại từ nơi khác. In "OK: ..."/"ERR: ..." ra stdout để caller parse.
+do_generate_core() {
+    if ! is_installed; then
+        echo "ERR: Psiphon chưa được cài đặt"
+        return 1
+    fi
+
+    sync_shared_meek_children
+
+    local proto_args=""
+    local has_proto=false
+    for entry in "${PROTO_LIST[@]}"; do
+        local proto port enabled
+        IFS=':' read -r proto port enabled <<< "$entry"
+        if [ "$enabled" = "true" ]; then
+            proto_args="$proto_args --protocol $proto:$port"
+            has_proto=true
+        fi
+    done
+    if ! $has_proto; then
+        echo "ERR: Chưa bật protocol nào - vào Cấu hình Protocol trước"
+        return 1
+    fi
+
+    echo "OK: [1/3] Dọn tiến trình psiphond cũ..."
+    force_cleanup_psiphond 1
+
+    echo "OK: [2/3] Xóa config cũ..."
     rm -f "$INSTALL_DIR"/psiphond.config \
           "$INSTALL_DIR"/psiphond-osl.config \
           "$INSTALL_DIR"/psiphond-tactics.config \
           "$INSTALL_DIR"/psiphond-traffic-rules.config \
           "$ENTRY_RAW" "$ENTRY_PATCHED"
-    echo -e "${G}  ✓ OK${N}"
 
-    echo -e "${Y}  [3/3] Đang generate...${N}"
-    cd "$INSTALL_DIR" || exit 1
+    echo "OK: [3/3] Đang generate..."
+    cd "$INSTALL_DIR" || { echo "ERR: Không cd được vào $INSTALL_DIR"; return 1; }
     local region_arg=""
     [ -n "$REGION" ] && region_arg="--region $REGION"
-    eval "$BINARY --ipaddress $SERVER_IP --web $WEB_PORT $region_arg $proto_args generate"
+    eval "$BINARY --ipaddress $SERVER_IP --web $WEB_PORT $region_arg $proto_args generate" >/tmp/psiphon-generate.log 2>&1
 
     if [ ! -f "$ENTRY_RAW" ]; then
-        echo -e "${R}  Generate thất bại!${N}"; press_enter; return
+        echo "ERR: Generate thất bại"
+        tail -20 /tmp/psiphon-generate.log
+        return 1
     fi
-    echo -e "${G}  ✓ Generate xong${N}"
+    echo "OK: Generate xong"
 
-    # Dùng thẳng entry gốc, không sửa gì thêm.
     cp "$ENTRY_RAW" "$ENTRY_PATCHED"
-
-    # Copy thẳng 1 bản server-entry.dat ra root hệ thống để dễ lấy/backup.
     cp "$ENTRY_RAW" "/root/server-entry.dat"
 
-    echo -e "${Y}  Áp dụng giới hạn băng thông...${N}"
     write_traffic_rules
     inject_server_config
-    echo -e "${G}  ✓ Đã ghi traffic-rules.json (limit ${DEFAULT_LIMIT_KBPS}KB/s) + tiêm vào psiphond.config${N}"
+    echo "OK: Đã ghi traffic-rules.json (limit ${DEFAULT_LIMIT_KBPS}KB/s) + tiêm vào psiphond.config"
 
-    echo ""
-    echo -e "${G}  ✓ HOÀN TẤT! Entry là bản gốc do psiphond sinh ra (không bị vá).${N}"
-    echo -e "  ${Y}→ Đã copy 1 bản ra: ${G}/root/server-entry.dat${N}"
-
-    # Tự động khởi động ngay + bật autostart — không hỏi xác nhận, vì đây là
-    # bước cuối cùng của quy trình cài đặt/generate và người dùng luôn muốn
-    # server chạy ngay sau đó. Trước đây phần này là "confirm (y/N)" nên chỉ
-    # cần nhấn Enter nhầm là service KHÔNG được start, dẫn tới tình trạng
-    # "generate xong tưởng đã chạy nhưng thực ra vẫn DỪNG".
-    echo ""
-    echo -e "${Y}  Đang tự động khởi động server...${N}"
     do_start
     if ! systemctl is-enabled --quiet psiphond 2>/dev/null; then
-        systemctl enable psiphond >/dev/null 2>&1 \
-            && echo -e "${G}  ✓ Đã bật autostart khi reboot${N}"
+        systemctl enable psiphond >/dev/null 2>&1 && echo "OK: Đã bật autostart khi reboot"
     fi
-    press_enter
+    if is_running; then
+        echo "OK: Server đang chạy"
+    else
+        echo "ERR: Generate xong nhưng server không tự chạy được - kiểm tra: systemctl status psiphond"
+        return 1
+    fi
+    return 0
 }
 
 # ================================================================

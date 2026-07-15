@@ -52,7 +52,7 @@
   /* ---------- Layout ---------- */
   main{max-width:1180px; margin:0 auto; padding:26px 28px;}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
-  @media (max-width:860px){ .grid{grid-template-columns:1fr;} main{padding:18px;} header.topbar{padding:16px 18px;} }
+  @media (max-width:860px){ .grid{grid-template-columns:1fr;} main{padding:18px;} header.topbar{padding:16px 18px;} .two-col{grid-template-columns:1fr !important;} }
   .full{grid-column:1 / -1;}
 
   .card{
@@ -197,6 +197,66 @@
       </div>
     </section>
 
+    <!-- Generate server -->
+    <section class="card full">
+      <div class="hd"><h2>Tạo mới lại server (generate)</h2></div>
+      <div class="bd">
+        <p class="hint" style="margin:0 0 14px;">Xoá config + server entry cũ, sinh lại từ đầu theo protocol/port đang bật, rồi tự start server. <strong style="color:var(--red)">Client cũ phải cập nhật lại server entry</strong> sau bước này. Muốn đổi protocol/port trước khi generate, sửa ở CLI menu [2] (chưa có trên web).</p>
+        <button class="btn danger" id="btnGenerate">⚠ Generate lại server</button>
+        <div class="outbox empty" id="generateOut"></div>
+      </div>
+    </section>
+
+    <!-- Server entry -->
+    <section class="card full">
+      <div class="hd"><h2>Server entry</h2></div>
+      <div class="bd">
+        <div id="entryEmpty" class="hint">Chưa có server entry — bấm "Generate lại server" ở trên trước.</div>
+        <div id="entryContent" style="display:none;">
+          <pre id="entryInfo" class="mono" style="background:var(--void); border:1px solid var(--border-soft); padding:12px; font-size:12px; color:var(--dim); margin:0 0 14px; white-space:pre-wrap;"></pre>
+          <div class="btn-row">
+            <button class="btn" id="btnCopyEntry" type="button">📋 Copy hex</button>
+            <a class="btn" id="btnDownloadEntry" href="/api/server-entry/download" download="server-entry.txt" style="text-decoration:none; display:inline-flex; align-items:center;">⬇ Tải file</a>
+          </div>
+          <textarea id="entryHex" readonly style="width:100%; margin-top:12px; min-height:100px; background:var(--void); border:1px solid var(--border-soft); color:var(--dim); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:10px;"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- psiphonAuth & giới hạn băng thông -->
+    <section class="card full">
+      <div class="hd"><h2>psiphonAuth &amp; giới hạn băng thông</h2></div>
+      <div class="bd">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:22px;" class="two-col">
+          <div>
+            <h3 class="mono" style="font-size:12px; color:var(--dim); letter-spacing:.1em; margin:0 0 10px;">SINH SIGNING KEY MỚI</h3>
+            <p class="hint" style="margin:0 0 12px;">Bắt buộc trước khi cấp token psiphonAuth. <strong style="color:var(--red)">Ghi đè key đã có sẽ vô hiệu hoá TẤT CẢ token cũ.</strong></p>
+            <div class="checkline">
+              <input type="checkbox" id="kpRestart" checked>
+              <label for="kpRestart" style="margin:0;">Tự restart sau khi sinh key</label>
+            </div>
+            <button class="btn danger" id="btnGenKeypair" type="button">Sinh keypair</button>
+            <div class="outbox empty" id="keypairOut"></div>
+          </div>
+          <div>
+            <h3 class="mono" style="font-size:12px; color:var(--dim); letter-spacing:.1em; margin:0 0 10px;">GIỚI HẠN MẶC ĐỊNH (KHÔNG CÓ TOKEN)</h3>
+            <form id="limitForm">
+              <div class="field">
+                <label>KB/S (0 = KHÔNG GIỚI HẠN)</label>
+                <input type="text" id="limitKbps" inputmode="numeric" placeholder="256">
+              </div>
+              <div class="checkline">
+                <input type="checkbox" id="limitRestart" checked>
+                <label for="limitRestart" style="margin:0;">Tự restart sau khi áp dụng</label>
+              </div>
+              <button class="btn primary" type="submit">Áp dụng giới hạn</button>
+            </form>
+            <div class="outbox empty" id="limitOut"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Import verification key -->
     <section class="card full">
       <div class="hd"><h2>Import verification key</h2></div>
@@ -318,9 +378,13 @@ async function refreshStatus(){
     if (!$('accessType').dataset.touched && s.access_type){
       $('accessType').placeholder = s.access_type;
     }
+    if (!$('limitKbps').dataset.touched){
+      $('limitKbps').value = s.default_limit_kbps ?? '';
+    }
   }catch(e){ /* đã redirect nếu 401 */ }
 }
 $('accessType').addEventListener('input', e => e.target.dataset.touched = '1');
+$('limitKbps').addEventListener('input', e => e.target.dataset.touched = '1');
 
 // ---------------- Controls ----------------
 async function runControl(btn, url, confirmMsg){
@@ -360,6 +424,99 @@ $('importForm').addEventListener('submit', async (e) => {
   btn.disabled = false; btn.textContent = orig;
 });
 
+// ---------------- Generate server ----------------
+$('btnGenerate').addEventListener('click', async () => {
+  if (!confirm('Generate sẽ XOÁ config + server entry hiện tại và sinh lại từ đầu.\nClient cũ sẽ cần server entry MỚI mới kết nối được.\nTiếp tục?')) return;
+  const btn = $('btnGenerate');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Đang generate (có thể mất chút thời gian)...';
+  try{
+    const fd = new FormData(); fd.set('confirm', '1');
+    const res = await fetch('/api/generate', {method:'POST', body:fd});
+    if (res.status === 401){ window.location.href = '/login'; return; }
+    const r = await res.json();
+    printOut($('generateOut'), r);
+    refreshStatus();
+    refreshEntry();
+  }catch(err){
+    printOut($('generateOut'), {ok:false, output:'Lỗi mạng: ' + err});
+  }
+  btn.disabled = false; btn.textContent = orig;
+});
+
+// ---------------- Server entry ----------------
+async function refreshEntry(){
+  try{
+    const r = await callApi('/api/server-entry');
+    if (!r.exists){
+      $('entryEmpty').style.display = '';
+      $('entryContent').style.display = 'none';
+      return;
+    }
+    $('entryEmpty').style.display = 'none';
+    $('entryContent').style.display = '';
+    $('entryInfo').textContent = r.info || '(không đọc được thông tin)';
+    $('entryHex').value = r.hex || '';
+  }catch(e){}
+}
+$('btnCopyEntry').addEventListener('click', async () => {
+  const btn = $('btnCopyEntry');
+  try{
+    await navigator.clipboard.writeText($('entryHex').value);
+    const orig = btn.textContent; btn.textContent = '✓ Đã copy'; setTimeout(() => btn.textContent = orig, 1500);
+  }catch(e){
+    $('entryHex').select(); document.execCommand('copy');
+  }
+});
+
+// ---------------- Generate keypair ----------------
+$('btnGenKeypair').addEventListener('click', async () => {
+  let forceOverwrite = '0';
+  if (!confirm('Sinh signing key mới cho psiphonAuth?')) return;
+  // Backend sẽ tự chặn nếu đã có key và chưa xác nhận ghi đè.
+  const attempt = async (force) => {
+    const fd = new FormData();
+    fd.set('restart', $('kpRestart').checked ? '1' : '0');
+    fd.set('force_overwrite', force);
+    const res = await fetch('/api/generate-keypair', {method:'POST', body:fd});
+    if (res.status === 401){ window.location.href = '/login'; return null; }
+    return res.json();
+  };
+  const btn = $('btnGenKeypair');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = '...';
+  try{
+    let r = await attempt('0');
+    if (r && !r.ok && /Đã có signing key/.test(r.output)){
+      if (confirm('Đã có signing key trên VPS này.\nGhi đè sẽ vô hiệu hoá TẤT CẢ token cũ đã cấp.\nVẫn tiếp tục ghi đè?')){
+        r = await attempt('1');
+      }
+    }
+    if (r) { printOut($('keypairOut'), r); refreshStatus(); }
+  }catch(err){
+    printOut($('keypairOut'), {ok:false, output:'Lỗi mạng: ' + err});
+  }
+  btn.disabled = false; btn.textContent = orig;
+});
+
+// ---------------- Set bandwidth limit ----------------
+$('limitForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Đang áp dụng...';
+  try{
+    const fd = new FormData();
+    fd.set('kbps', $('limitKbps').value.trim());
+    fd.set('restart', $('limitRestart').checked ? '1' : '0');
+    const res = await fetch('/api/set-limit', {method:'POST', body:fd});
+    if (res.status === 401){ window.location.href = '/login'; return; }
+    const r = await res.json();
+    printOut($('limitOut'), r);
+    refreshStatus();
+  }catch(err){
+    printOut($('limitOut'), {ok:false, output:'Lỗi mạng: ' + err});
+  }
+  btn.disabled = false; btn.textContent = orig;
+});
+
 // ---------------- Logs ----------------
 let logAutoTimer = null;
 async function refreshLogs(){
@@ -385,8 +542,10 @@ $('logLines').addEventListener('change', refreshLogs);
 
 // ---------------- Init ----------------
 refreshStatus();
+refreshEntry();
 refreshLogs();
 setupLogAuto();
+setInterval(refreshStatus, 6000);
 setInterval(refreshStatus, 6000);
 </script>
 </body>

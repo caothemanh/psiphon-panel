@@ -818,6 +818,209 @@ with open(sys.argv[1], 'a') as f:
     press_enter
 }
 
+# Cấp psiphonAuth token mới - KHÔNG hỏi gì, dùng cho web dashboard. In ra
+# 1 dòng JSON DUY NHẤT (không mix text khác) để caller parse trực tiếp,
+# vì token là dữ liệu người dùng cần copy chính xác (không hợp với kiểu
+# "OK: ..." text tự do như các hàm _core khác).
+# Tham số: $1 = note, $2 = số ngày hiệu lực, $3 = số thiết bị (0=không giới hạn)
+issue_auth_token_core() {
+    local note="$1" days="$2" devices="$3"
+
+    if [ ! -f "$SIGNING_KEY_FILE" ]; then
+        echo '{"ok": false, "error": "Chưa có signing key - sinh keypair trước."}'
+        return 1
+    fi
+    ensure_authgen || { echo '{"ok": false, "error": "Không cài được psiphon-authgen."}'; return 1; }
+
+    [ -z "$note" ] && note="token_$(date +%s)"
+    [[ "$days" =~ ^[0-9]+$ ]] || days=30
+    [[ "$devices" =~ ^[0-9]+$ ]] || devices=1
+
+    local result token authid
+    result=$("$AUTHGEN_BINARY" issue "$SIGNING_KEY_FILE" "$note" "$days" 2>/tmp/psiphon-authgen-err.log)
+    if [ -z "$result" ]; then
+        local errtxt
+        errtxt=$(tail -c 500 /tmp/psiphon-authgen-err.log 2>/dev/null)
+        ERRTXT="$errtxt" python3 -c "import json,os; print(json.dumps({'ok': False, 'error': 'Sinh token thất bại: ' + os.environ.get('ERRTXT','')}))"
+        return 1
+    fi
+    token=$(echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+auths = d.get('authorizations')
+if auths is None:
+    auths = d.get('token')
+if isinstance(auths, str):
+    auths = [auths]
+auths = auths or []
+print(auths[0] if auths else '')
+")
+    authid=$(echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+a = d.get('authorizationId')
+if isinstance(a, list):
+    a = a[0] if a else ''
+print(a)
+")
+
+    if [ -z "$token" ] || [ -z "$authid" ]; then
+        echo '{"ok": false, "error": "psiphon-authgen trả về dữ liệu không như mong đợi."}'
+        return 1
+    fi
+
+    set_device_limit "$authid" "$devices"
+
+    mkdir -p "$PANEL_DIR"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | $note | ${days}d | devices=${devices} | authID=${authid} | $token" >> "$TOKENS_LOG"
+
+    python3 -c "
+import json, sys
+path = sys.argv[1]
+new_token = sys.argv[2]
+try:
+    with open(path, 'r') as f:
+        arr = json.load(f)
+    if not isinstance(arr, list):
+        arr = []
+except (FileNotFoundError, json.JSONDecodeError):
+    arr = []
+arr.append(new_token)
+with open(path, 'w') as f:
+    json.dump(arr, f, separators=(', ', ': '))
+    f.write('\n')
+" "$AUTH_ARRAY_FILE" "$token"
+
+    python3 -c "
+import json, sys
+new_token = sys.argv[2]
+with open(sys.argv[1], 'a') as f:
+    f.write(json.dumps([new_token], separators=(', ', ': ')))
+    f.write('\n')
+" "$AUTH_BLOCKS_FILE" "$token"
+
+    NOTE="$note" DAYS="$days" DEVICES="$devices" AUTHID="$authid" TOKEN="$token" python3 -c "
+import json, os
+token = os.environ['TOKEN']
+print(json.dumps({
+    'ok': True,
+    'note': os.environ['NOTE'],
+    'days': int(os.environ['DAYS']),
+    'devices': int(os.environ['DEVICES']),
+    'auth_id': os.environ['AUTHID'],
+    'token': token,
+    'token_array': json.dumps([token]),
+}))
+"
+    return 0
+}
+
+# Liệt kê toàn bộ token đã cấp (đọc TOKENS_LOG), đối chiếu device limit
+# HIỆN TẠI từ DEVICE_LIMITS_FILE (có thể đã bị sửa sau lúc cấp qua menu
+# [6] hoặc web) thay vì chỉ dùng giá trị lúc cấp ban đầu. In JSON.
+list_auth_tokens_core() {
+    if [ ! -f "$TOKENS_LOG" ]; then
+        echo '{"ok": true, "tokens": []}'
+        return 0
+    fi
+    TOKENS_LOG_PATH="$TOKENS_LOG" DEVICE_LIMITS_PATH="$DEVICE_LIMITS_FILE" python3 -c "
+import json, os
+
+limits = {}
+dl_path = os.environ['DEVICE_LIMITS_PATH']
+if os.path.isfile(dl_path):
+    try:
+        with open(dl_path) as f:
+            limits = json.load(f)
+    except Exception:
+        limits = {}
+
+tokens = []
+with open(os.environ['TOKENS_LOG_PATH']) as f:
+    for line in f:
+        line = line.rstrip('\n')
+        if not line.strip():
+            continue
+        parts = [p.strip() for p in line.split('|')]
+        if len(parts) < 6:
+            continue
+        date, note, days, devices_raw, authid_raw, token = parts[0], parts[1], parts[2], parts[3], parts[4], '|'.join(parts[5:])
+        auth_id = authid_raw.replace('authID=', '').strip()
+        try:
+            created_devices = int(devices_raw.replace('devices=', '').strip())
+        except ValueError:
+            created_devices = None
+        current_devices = limits.get(auth_id, created_devices)
+        tokens.append({
+            'date': date,
+            'note': note,
+            'days': days,
+            'devices_created': created_devices,
+            'devices_current': current_devices,
+            'auth_id': auth_id,
+            'token': token,
+            'token_array': json.dumps([token]),
+        })
+
+print(json.dumps({'ok': True, 'tokens': list(reversed(tokens))}))
+"
+}
+
+# Sửa số thiết bị đồng thời của 1 token đã cấp - KHÔNG hỏi gì, dùng cho
+# web dashboard. Hot-reload tự động, không cần restart psiphond.
+# Tham số: $1 = AuthorizationID, $2 = số thiết bị mới (0 = không giới hạn)
+set_device_limit_core() {
+    local auth_id="$1" limit="$2"
+    if [ -z "$auth_id" ]; then
+        echo "ERR: Thiếu AuthorizationID"
+        return 1
+    fi
+    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+        echo "ERR: Số thiết bị không hợp lệ: $limit"
+        return 1
+    fi
+    set_device_limit "$auth_id" "$limit"
+    echo "OK: Đã đặt số thiết bị của $auth_id = $limit (0 = không giới hạn, hot-reload tự động)"
+    return 0
+}
+
+# Kick thiết bị đang giữ 1 AuthorizationID (ngắt ngay, KHÔNG thu hồi token
+# vĩnh viễn) - KHÔNG hỏi gì, dùng cho web dashboard.
+# Tham số: $1 = AuthorizationID
+kick_authorization_core() {
+    local auth_id="$1"
+    if [ -z "$auth_id" ]; then
+        echo "ERR: Thiếu AuthorizationID"
+        return 1
+    fi
+    if ! is_running; then
+        echo "ERR: psiphond đang không chạy"
+        return 1
+    fi
+
+    [ -f "$KICK_REQUESTS_FILE" ] || echo '[]' > "$KICK_REQUESTS_FILE"
+    python3 -c "
+import json, sys
+auth_id = sys.argv[2]
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+if auth_id not in d:
+    d.append(auth_id)
+with open(sys.argv[1], 'w') as f:
+    json.dump(d, f)
+" "$KICK_REQUESTS_FILE" "$auth_id"
+
+    local pid
+    pid=$(pgrep -f "$INSTALL_DIR/psiphond" | head -1)
+    if [ -z "$pid" ]; then
+        echo "ERR: Không tìm thấy tiến trình psiphond đang chạy để gửi tín hiệu"
+        return 1
+    fi
+    kill -USR1 "$pid"
+    echo "OK: Đã gửi yêu cầu kick cho $auth_id (token vẫn còn hiệu lực, ai connect lại trước sẽ chiếm slot)"
+    return 0
+}
+
 # Ngắt kết nối ngay lập tức thiết bị đang giữ 1 authorization ID cụ thể,
 # KHÔNG thu hồi vĩnh viễn - token vẫn còn hiệu lực, slot sẽ trống ngay để
 # thiết bị tiếp theo (chủ thật hoặc không) chiếm lại theo đúng device limit.

@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased (9)
+- **Thêm "Quản lý User" (psiphonAuth Token) lên Web Dashboard.** Trước đây
+  web chỉ có "Sinh cặp khóa ký" (keypair) - phần cấp/quản lý token cho
+  từng user hoàn toàn phải làm qua CLI menu [6]. Giờ thêm card "Quản lý
+  User (psiphonAuth Token)":
+  - Cấp token mới (ghi chú, số ngày hiệu lực, số thiết bị đồng thời) -
+    trả về token dạng chuỗi thuần + dạng mảng JSON sẵn để dán vào config
+    client, đều có nút copy riêng.
+  - Bảng danh sách toàn bộ token đã cấp (ngày, ghi chú, hạn, số thiết bị
+    HIỆN TẠI - đối chiếu sống với device-limits.json chứ không phải giá
+    trị lúc cấp ban đầu, AuthID rút gọn).
+  - Mỗi dòng sửa được số thiết bị đồng thời (hot-reload, không cần
+    restart) và "Kick" (ngắt khẩn cấp thiết bị đang giữ token, không thu
+    hồi token vĩnh viễn - đúng hành vi nút Kick ở CLI).
+  - Backend: 4 hàm mới `issue_auth_token_core`, `list_auth_tokens_core`,
+    `set_device_limit_core`, `kick_authorization_core` (tách theo đúng
+    pattern các hàm `_core` khác - không hỏi gì, dùng chung logic với bản
+    CLI tương tác để không lệch bug giữa 2 giao diện), 4 route Flask mới
+    `/api/token/issue|list|set-devices|kick`.
+  - Tiện sửa luôn: xoá 1 dòng `setInterval(refreshStatus, 6000)` bị lặp 2
+    lần trong `index.html` (không phải bug nghiêm trọng, chỉ dư 1 interval
+    vô ích).
+
 ## Unreleased (8)
 - **Sửa bug "đã cập nhật panel nhưng fix vẫn không có tác dụng".** Bước
   `[2/6]` của `install_web_dashboard()` tự tải bản `psiphon-panel.sh` mới

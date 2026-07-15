@@ -317,6 +317,72 @@ def api_set_limit():
     return jsonify(r)
 
 
+# ----------------------------------------------------------------------
+# API: cấp psiphonAuth token mới cho 1 user
+# ----------------------------------------------------------------------
+@app.route("/api/token/issue", methods=["POST"])
+@login_required
+def api_token_issue():
+    note = (request.form.get("note") or "").strip()
+    days = (request.form.get("days") or "30").strip()
+    devices = (request.form.get("devices") or "1").strip()
+    if not days.isdigit():
+        return jsonify({"ok": False, "error": "Số ngày phải là số nguyên."}), 400
+    if not devices.isdigit():
+        return jsonify({"ok": False, "error": "Số thiết bị phải là số nguyên >= 0."}), 400
+    r = run_panel_func("issue_auth_token_core", note, days, devices, timeout=30)
+    if not r["ok"]:
+        return jsonify({"ok": False, "error": r["output"] or "Sinh token thất bại."}), 500
+    try:
+        return jsonify(json.loads(r["output"]))
+    except json.JSONDecodeError:
+        return jsonify({"ok": False, "error": r["output"] or "Phản hồi không phải JSON hợp lệ."}), 500
+
+
+# ----------------------------------------------------------------------
+# API: danh sách token đã cấp
+# ----------------------------------------------------------------------
+@app.route("/api/token/list")
+@login_required
+def api_token_list():
+    r = run_panel_func("list_auth_tokens_core", timeout=20)
+    if not r["ok"]:
+        return jsonify({"ok": False, "tokens": [], "error": r["output"]})
+    try:
+        return jsonify(json.loads(r["output"]))
+    except json.JSONDecodeError:
+        return jsonify({"ok": False, "tokens": [], "error": "Phản hồi không phải JSON hợp lệ."})
+
+
+# ----------------------------------------------------------------------
+# API: sửa số thiết bị đồng thời của 1 token đã cấp
+# ----------------------------------------------------------------------
+@app.route("/api/token/set-devices", methods=["POST"])
+@login_required
+def api_token_set_devices():
+    auth_id = (request.form.get("auth_id") or "").strip()
+    devices = (request.form.get("devices") or "").strip()
+    if not auth_id:
+        return jsonify({"ok": False, "output": "Thiếu AuthorizationID."}), 400
+    if not devices.isdigit():
+        return jsonify({"ok": False, "output": "Số thiết bị phải là số nguyên >= 0."}), 400
+    r = run_panel_func("set_device_limit_core", auth_id, devices, timeout=20)
+    return jsonify(r)
+
+
+# ----------------------------------------------------------------------
+# API: kick thiết bị đang giữ 1 token (ngắt khẩn cấp, không thu hồi token)
+# ----------------------------------------------------------------------
+@app.route("/api/token/kick", methods=["POST"])
+@login_required
+def api_token_kick():
+    auth_id = (request.form.get("auth_id") or "").strip()
+    if not auth_id:
+        return jsonify({"ok": False, "output": "Thiếu AuthorizationID."}), 400
+    r = run_panel_func("kick_authorization_core", auth_id, timeout=20)
+    return jsonify(r)
+
+
 if __name__ == "__main__":
     # Chạy dev server, bind localhost mặc định (an toàn hơn). Production nên
     # dùng gunicorn qua systemd unit đi kèm (xem README) + reverse proxy TLS.

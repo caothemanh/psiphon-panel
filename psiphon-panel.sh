@@ -1779,6 +1779,24 @@ do_generate() {
         press_enter; return
     fi
 
+    # Bắt buộc phải có Region trước khi generate - server entry không có
+    # Region sẽ khiến client không lọc/ưu tiên được server theo khu vực, và
+    # dễ bị quên đặt vì trước đây field này optional. Không cho generate
+    # tiếp cho tới khi có giá trị hợp lệ.
+    while [ -z "$REGION" ]; do
+        echo -e "${Y}  Chưa đặt Region cho server này - bắt buộc phải có trước khi generate.${N}"
+        echo -ne "  ${Y}Nhập Region (mã 2 chữ cái, VD: VN, JP, US, SG): ${N}"
+        read -r inp
+        inp="${inp^^}"
+        if [[ "$inp" =~ ^[A-Z]{2}$ ]]; then
+            REGION="$inp"
+            save_config
+            echo -e "${G}  ✓ Đã đặt Region: $REGION${N}"
+        else
+            echo -e "${R}  Region không hợp lệ - cần đúng 2 chữ cái (VD: VN).${N}"
+        fi
+    done
+
     echo -e "${Y}  Protocol sẽ dùng:${N}"
     local has_ws_experimental=false
     for entry in "${PROTO_LIST[@]}"; do
@@ -1804,7 +1822,7 @@ do_generate() {
     fi
     echo -e "  IP     : ${G}$SERVER_IP${N}"
     echo -e "  Web    : ${G}$WEB_PORT${N}"
-    echo -e "  Region : ${G}${REGION:-"(không đặt - server entry sẽ không có field region)"}${N}"
+    echo -e "  Region : ${G}$REGION${N}"
     echo ""
 
     confirm "  Xác nhận generate? (config cũ sẽ bị xóa)" || return
@@ -1821,6 +1839,14 @@ do_generate() {
 do_generate_core() {
     if ! is_installed; then
         echo "ERR: Psiphon chưa được cài đặt"
+        return 1
+    fi
+
+    # Region là bắt buộc (xem do_generate). Hàm này không có TTY để hỏi được
+    # (gọi từ web dashboard qua subprocess) nên chỉ có thể chặn lại và yêu
+    # cầu đặt trước qua CLI menu [2] > [R].
+    if [ -z "$REGION" ]; then
+        echo "ERR: Chưa đặt Region - vào CLI menu [2] > [R] Sửa Region trước khi generate"
         return 1
     fi
 

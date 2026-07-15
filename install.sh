@@ -17,7 +17,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$SCRIPT_DIR/psiphon-panel.sh" ] || fail "Không thấy psiphon-panel.sh trong $SCRIPT_DIR"
 [ -d "$SCRIPT_DIR/webpanel" ] || fail "Không thấy thư mục webpanel/ trong $SCRIPT_DIR"
 
-PANEL_DEST="/root/psiphon-panel.sh"
+
+# QUAN TRỌNG: phải khớp với đường dẫn "/usr/local/bin/psiphon-panel" mà
+# chính psiphon-panel.sh dùng ở mọi nơi khác (PANEL_URL fetch đích, menu [8]
+# "Cập nhật Panel", và default PANEL_SCRIPT_PATH khi cài dashboard từ trong
+# menu CLI [7]). Nếu để khác đi (VD /root/psiphon-panel.sh như trước đây),
+# sau này chạy "Cập nhật Panel" từ menu CLI sẽ cập nhật NHẦM file, còn
+# dashboard vẫn chạy mãi bản cũ vì PANEL_SCRIPT_PATH trỏ chỗ khác.
+PANEL_DEST="/usr/local/bin/psiphon-panel"
 APP_DIR="/opt/psiphon-dashboard"
 ENV_FILE="/etc/psiphon-dashboard.env"
 
@@ -35,27 +42,53 @@ ok "Đã copy"
 
 # ---------------------------------------------------------------
 say "3/6 - Cài Python venv + dependencies"
+apt-get update -qq >/dev/null 2>&1 || true
+apt-get install -y -qq python3 python3-venv python3-pip >/dev/null 2>&1 || true
 if ! command -v python3 >/dev/null 2>&1; then
     fail "Chưa có python3, cài trước: apt install -y python3 python3-venv"
 fi
-python3 -m venv "$APP_DIR/venv"
+rm -rf "$APP_DIR/venv"
+python3 -m venv "$APP_DIR/venv" 2>/tmp/psiphon-venv-err.log
+if [ ! -x "$APP_DIR/venv/bin/pip" ]; then
+    # Ubuntu/Debian: gói "python3-venv" đôi khi không kéo theo đúng bản
+    # "python3.X-venv" cần cho ensurepip -> venv tạo ra nhưng thiếu pip.
+    # Dò đúng version python3 đang chạy rồi cài đúng gói đó.
+    PYVER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    echo -e "  ${Y}venv thiếu ensurepip, thử cài python${PYVER}-venv...${N}"
+    apt-get install -y -qq "python${PYVER}-venv" >/dev/null 2>&1 || true
+    rm -rf "$APP_DIR/venv"
+    python3 -m venv "$APP_DIR/venv" 2>/tmp/psiphon-venv-err.log
+fi
+if [ ! -x "$APP_DIR/venv/bin/pip" ]; then
+    echo -e "${R}  ✗ Không tạo được venv (thiếu pip trong venv). Lỗi:${N}"
+    sed 's/^/    /' /tmp/psiphon-venv-err.log
+    fail "Thử cài tay: apt install python${PYVER:-3}-venv    rồi chạy lại install.sh"
+fi
 "$APP_DIR/venv/bin/pip" install --quiet --upgrade pip
 "$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
 ok "Đã cài venv + Flask/gunicorn"
 
 # ---------------------------------------------------------------
 say "4/6 - Đặt mật khẩu dashboard"
+# Script này hay được chạy kiểu "curl ... | sudo bash" - lúc đó stdin đã bị
+# curl chiếm, "read" thường sẽ đọc phải EOF, trả về lỗi, và vì có "set -e"
+# script sẽ thoát NGAY LẬP TỨC ở đây mà không có thông báo gì rõ ràng (tưởng
+# treo/lỗi vô cớ). Đọc thẳng từ /dev/tty để luôn hỏi được, bất kể stdin.
+if [ ! -r /dev/tty ]; then
+    fail "Không có TTY để nhập mật khẩu (đang chạy qua pipe không tương tác?). Tải script về rồi chạy trực tiếp: curl -fsSL <url> -o install.sh && sudo bash install.sh"
+fi
+
 if [ -f "$ENV_FILE" ] && grep -q "^DASHBOARD_PASSWORD_HASH=" "$ENV_FILE" 2>/dev/null; then
     echo -ne "  ${Y}Đã có mật khẩu cấu hình sẵn. Đặt lại? (y/N): ${N}"
-    read -r reset_pw
+    read -r reset_pw < /dev/tty
 else
     reset_pw="y"
 fi
 
 if [[ "$reset_pw" =~ ^[Yy]$ ]]; then
     while true; do
-        read -rs -p "  Nhập mật khẩu mới cho dashboard: " PW1; echo
-        read -rs -p "  Nhập lại: " PW2; echo
+        read -rs -p "  Nhập mật khẩu mới cho dashboard: " PW1 < /dev/tty; echo
+        read -rs -p "  Nhập lại: " PW2 < /dev/tty; echo
         [ "$PW1" = "$PW2" ] || { echo -e "${R}  Không khớp, thử lại.${N}"; continue; }
         [ ${#PW1} -ge 8 ] || { echo -e "${R}  Mật khẩu nên >= 8 ký tự.${N}"; continue; }
         break

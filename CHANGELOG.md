@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased (4)
+- **Sửa lỗi `SyntaxError: Unexpected token '<'` khi gọi API từ web.** Trước
+  đây mọi handler JS gọi `fetch(...).json()` trực tiếp - nếu backend trả về
+  HTML (404 do route chưa tồn tại trên bản app.py cũ đang chạy, hoặc trang
+  lỗi 500 mặc định của Flask) thay vì JSON, `res.json()` sẽ throw lỗi parse
+  rất khó hiểu, không rõ nguyên nhân thật. Giờ tất cả gọi qua 2 helper dùng
+  chung `callApi()`/`postForm()`: đọc response dạng text trước, thử parse
+  JSON, nếu fail thì trả về thông báo rõ ràng (có phân biệt 404 vs lỗi
+  khác) thay vì để lỗi parse bắn thẳng ra UI.
+- Dời ô nhập Region xuống DƯỚI nút "Generate lại server" (trước đặt ở
+  trên, dễ nhầm là phải điền trước khi bấm generate mới thấy).
+
 ## Unreleased (3)
 - **Thêm ô nhập Region ngay trên Web Dashboard.** Trước đó Region chỉ đặt
   được qua CLI (SSH), web chỉ báo lỗi và bắt người dùng tự SSH vào sửa. Giờ

@@ -204,7 +204,10 @@
       <div class="bd">
         <p class="hint" style="margin:0 0 14px;">Xoá config + server entry cũ, sinh lại từ đầu theo protocol/port đang bật, rồi tự start server. <strong style="color:var(--red)">Client cũ phải cập nhật lại server entry</strong> sau bước này. Muốn đổi protocol/port trước khi generate, sửa ở CLI menu [2] (chưa có trên web).</p>
 
-        <div class="field" style="max-width:220px; margin-bottom:14px;">
+        <button class="btn danger" id="btnGenerate">⚠ Generate lại server</button>
+        <div class="outbox empty" id="generateOut"></div>
+
+        <div class="field" style="max-width:220px; margin-top:16px;">
           <label>REGION (bắt buộc trước khi generate, VD: VN, JP, US, SG)</label>
           <div style="display:flex; gap:8px;">
             <input type="text" id="regionInput" maxlength="2" placeholder="VN" style="text-transform:uppercase;">
@@ -212,9 +215,6 @@
           </div>
         </div>
         <div class="outbox empty" id="regionOut"></div>
-
-        <button class="btn danger" id="btnGenerate">⚠ Generate lại server</button>
-        <div class="outbox empty" id="generateOut"></div>
       </div>
     </section>
 
@@ -359,7 +359,39 @@ function printOut(box, result){
 async function callApi(url, opts){
   const res = await fetch(url, opts);
   if (res.status === 401){ window.location.href = '/login'; throw new Error('unauthorized'); }
-  return res.json();
+  const raw = await res.text();
+  try{
+    return JSON.parse(raw);
+  }catch(e){
+    const hint = res.status === 404
+      ? `HTTP 404 - endpoint không tồn tại (backend có thể đang chạy bản cũ, cần cập nhật + restart service).`
+      : `HTTP ${res.status} - server trả về không phải JSON. Xem: journalctl -u psiphon-dashboard -n 50`;
+    return {ok: false, error: hint, output: hint};
+  }
+}
+
+// POST 1 FormData tới url, luôn trả về {ok, output} kể cả khi response
+// KHÔNG phải JSON (VD: 404/500 trả về trang lỗi HTML mặc định của Flask -
+// khi đó res.json() sẽ throw "Unexpected token '<'..." rất khó hiểu với
+// người dùng). Dùng hàm này thay vì gọi fetch()+res.json() trực tiếp.
+async function postForm(url, fd){
+  let res;
+  try{
+    res = await fetch(url, {method: 'POST', body: fd});
+  }catch(err){
+    return {ok: false, output: 'Lỗi mạng: ' + err, _unauthorized: false};
+  }
+  if (res.status === 401){ window.location.href = '/login'; return {ok:false, output:'', _unauthorized: true}; }
+  const raw = await res.text();
+  try{
+    const data = JSON.parse(raw);
+    return Object.assign({_unauthorized: false}, data);
+  }catch(e){
+    const hint = res.status === 404
+      ? `HTTP 404 - endpoint không tồn tại. Rất có thể webpanel/app.py trên VPS đang chạy bản CŨ (thiếu route này). Cập nhật lại /opt/psiphon-dashboard/app.py + templates rồi "systemctl restart psiphon-dashboard".`
+      : `HTTP ${res.status} - server trả về không phải JSON (có thể là trang lỗi 500). Xem thêm: journalctl -u psiphon-dashboard -n 50`;
+    return {ok: false, output: hint, _unauthorized: false};
+  }
 }
 
 // ---------------- Status ----------------
@@ -429,9 +461,8 @@ $('importForm').addEventListener('submit', async (e) => {
   try{
     const fd = new FormData(e.target);
     if (!fd.get('restart')) fd.set('restart', '0'); else fd.set('restart', '1');
-    const res = await fetch('/api/import-key', {method:'POST', body:fd});
-    if (res.status === 401){ window.location.href = '/login'; return; }
-    const r = await res.json();
+    const r = await postForm('/api/import-key', fd);
+    if (r._unauthorized) return;
     printOut($('importOut'), r);
     refreshStatus();
   }catch(err){
@@ -451,9 +482,8 @@ $('btnSetRegion').addEventListener('click', async () => {
   btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Đang đặt...';
   try{
     const fd = new FormData(); fd.set('region', region);
-    const res = await fetch('/api/set-region', {method:'POST', body:fd});
-    if (res.status === 401){ window.location.href = '/login'; return; }
-    const r = await res.json();
+    const r = await postForm('/api/set-region', fd);
+    if (r._unauthorized) return;
     printOut($('regionOut'), r);
     if (r.ok) refreshStatus();
   }catch(err){
@@ -469,9 +499,8 @@ $('btnGenerate').addEventListener('click', async () => {
   btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Đang generate (có thể mất chút thời gian)...';
   try{
     const fd = new FormData(); fd.set('confirm', '1');
-    const res = await fetch('/api/generate', {method:'POST', body:fd});
-    if (res.status === 401){ window.location.href = '/login'; return; }
-    const r = await res.json();
+    const r = await postForm('/api/generate', fd);
+    if (r._unauthorized) return;
     printOut($('generateOut'), r);
     refreshStatus();
     refreshEntry();
@@ -515,9 +544,9 @@ $('btnGenKeypair').addEventListener('click', async () => {
     const fd = new FormData();
     fd.set('restart', $('kpRestart').checked ? '1' : '0');
     fd.set('force_overwrite', force);
-    const res = await fetch('/api/generate-keypair', {method:'POST', body:fd});
-    if (res.status === 401){ window.location.href = '/login'; return null; }
-    return res.json();
+    const r = await postForm('/api/generate-keypair', fd);
+    if (r._unauthorized) return null;
+    return r;
   };
   const btn = $('btnGenKeypair');
   btn.disabled = true; const orig = btn.textContent; btn.textContent = '...';
@@ -544,9 +573,8 @@ $('limitForm').addEventListener('submit', async (e) => {
     const fd = new FormData();
     fd.set('kbps', $('limitKbps').value.trim());
     fd.set('restart', $('limitRestart').checked ? '1' : '0');
-    const res = await fetch('/api/set-limit', {method:'POST', body:fd});
-    if (res.status === 401){ window.location.href = '/login'; return; }
-    const r = await res.json();
+    const r = await postForm('/api/set-limit', fd);
+    if (r._unauthorized) return;
     printOut($('limitOut'), r);
     refreshStatus();
   }catch(err){

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased (8)
+- **Sửa bug "đã cập nhật panel nhưng fix vẫn không có tác dụng".** Bước
+  `[2/6]` của `install_web_dashboard()` tự tải bản `psiphon-panel.sh` mới
+  nhất và ghi đè `/usr/local/bin/psiphon-panel` trên đĩa, NHƯNG tiến trình
+  bash đang chạy đã nạp toàn bộ hàm (kể cả chính hàm này) từ bản CŨ ngay
+  lúc khởi động - ghi đè file không khiến tiến trình hiện tại dùng code
+  mới. Hậu quả: các bước `[3/6]` trở đi trong CÙNG 1 lần chạy vẫn thực thi
+  logic cũ y hệt trước khi "cập nhật", dù file trên đĩa đã đúng bản mới
+  nhất (đây là lý do fix chọn Python >= 3.8 ở bản trước "không ăn thua" dù
+  panel báo cập nhật thành công). Giờ nếu tải về bản THỰC SỰ khác (so bằng
+  `cmp`), sẽ `exec` lại chính nó bằng bản mới trên đĩa (giống cách
+  `update_panel_self` ở menu `[8]` vốn đã làm đúng từ trước) và tự động
+  tiếp tục đúng ngay bước cài Web Dashboard đang dở dang, thay vì chạy tiếp
+  bằng code cũ còn nằm trong bộ nhớ tiến trình.
+
 ## Unreleased (7)
 - **Sửa lỗi cài dependencies thất bại trên VPS Python cũ.**
   `pip install Flask==3.0.3` báo `Could not find a version that satisfies

@@ -2644,8 +2644,22 @@ install_web_dashboard() {
 
     echo -e "${Y}  [2/6] Cập nhật psiphon-panel.sh lên bản mới nhất...${N}"
     if curl -fsSL "$PANEL_URL" -o /usr/local/bin/psiphon-panel.new; then
-        mv /usr/local/bin/psiphon-panel.new /usr/local/bin/psiphon-panel
-        chmod +x /usr/local/bin/psiphon-panel
+        if ! cmp -s /usr/local/bin/psiphon-panel.new /usr/local/bin/psiphon-panel 2>/dev/null; then
+            mv /usr/local/bin/psiphon-panel.new /usr/local/bin/psiphon-panel
+            chmod +x /usr/local/bin/psiphon-panel
+            # QUAN TRỌNG: tiến trình đang chạy đã đọc/nạp các hàm bash (kể cả
+            # chính install_web_dashboard này) từ bản CŨ ngay khi khởi động -
+            # ghi đè file trên đĩa không làm tiến trình hiện tại "nạp lại"
+            # code mới. Nếu cứ tiếp tục chạy tiếp trong tiến trình này, các
+            # bước [3/6] trở đi vẫn dùng logic CŨ dù file đã là bản mới nhất
+            # (VD: thiếu fix chọn Python >= 3.8, dependencies vẫn fail y hệt
+            # trước dù đã "cập nhật xong"). Phải exec lại bằng bản mới, tự
+            # tiếp tục đúng bước cài dashboard, để chạy đúng code mới nhất.
+            echo -e "${G}  ✓ Đã có bản mới - khởi động lại để dùng đúng code mới...${N}"
+            exec env PANEL_RESUME_WEBPANEL_INSTALL=1 /usr/local/bin/psiphon-panel
+        else
+            rm -f /usr/local/bin/psiphon-panel.new
+        fi
     else
         echo -e "${Y}  ⚠ Không tải được bản mới, giữ nguyên bản hiện có.${N}"
     fi
@@ -2879,5 +2893,14 @@ main_menu() {
 
 if [ "${PANEL_LIB_MODE:-0}" != "1" ]; then
     check_root
-    main_menu
+    if [ "${PANEL_RESUME_WEBPANEL_INSTALL:-0}" = "1" ]; then
+        # Được exec lại từ bản psiphon-panel MỚI ngay sau khi tự cập nhật ở
+        # bước [2/6] của install_web_dashboard (xem comment ở đó) - tiếp tục
+        # đúng chỗ đang dở dang bằng code mới nhất vừa tải về.
+        unset PANEL_RESUME_WEBPANEL_INSTALL
+        load_config
+        install_web_dashboard
+    else
+        main_menu
+    fi
 fi

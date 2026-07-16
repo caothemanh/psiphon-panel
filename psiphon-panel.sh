@@ -1974,6 +1974,119 @@ edit_protocol() {
     done
 }
 
+# Tìm index trong PROTO_LIST theo tên protocol. In ra stdout, trống nếu
+# không thấy. Dùng chung bởi các hàm _core bên dưới.
+_find_proto_idx() {
+    local want="$1" idx=0 entry proto
+    for entry in "${PROTO_LIST[@]}"; do
+        IFS=':' read -r proto _ _ <<< "$entry"
+        [ "$proto" = "$want" ] && { echo "$idx"; return 0; }
+        ((idx++))
+    done
+    return 1
+}
+
+# Liệt kê toàn bộ protocol + trạng thái - KHÔNG hỏi gì, dùng cho web
+# dashboard. In JSON.
+web_protocol_list_core() {
+    local out="[" first=1 entry proto port enabled
+    for entry in "${PROTO_LIST[@]}"; do
+        IFS=':' read -r proto port enabled <<< "$entry"
+        local is_exp=false is_shared=false
+        is_ws_experimental "$proto" && is_exp=true
+        is_shared_meek_port_protocol "$proto" && is_shared=true
+        [ "$first" -eq 1 ] || out+=","
+        first=0
+        out+=$(PROTO="$proto" PORT="$port" ENABLED="$enabled" IS_EXP="$is_exp" IS_SHARED="$is_shared" python3 -c "
+import json, os
+print(json.dumps({
+    'proto': os.environ['PROTO'],
+    'port': os.environ['PORT'],
+    'enabled': os.environ['ENABLED'] == 'true',
+    'is_experimental': os.environ['IS_EXP'] == 'true',
+    'is_shared': os.environ['IS_SHARED'] == 'true',
+}))
+")
+    done
+    out+="]"
+    local parent_enabled=false
+    is_parent_meek_enabled && parent_enabled=true
+    PARENT="$SHARED_MEEK_PORT_PARENT" PARENT_ENABLED="$parent_enabled" PROTOS_JSON="$out" python3 -c "
+import json, os
+print(json.dumps({
+    'ok': True,
+    'protocols': json.loads(os.environ['PROTOS_JSON']),
+    'shared_meek_parent': os.environ['PARENT'],
+    'shared_meek_parent_enabled': os.environ['PARENT_ENABLED'] == 'true',
+}))
+"
+}
+
+# Bật/tắt 1 protocol theo tên - KHÔNG hỏi gì, dùng cho web dashboard.
+# Áp dụng đúng các ràng buộc như bản CLI (edit_protocol [1]): protocol
+# dùng-chung-port yêu cầu $SHARED_MEEK_PORT_PARENT đang BẬT mới bật được;
+# tắt $SHARED_MEEK_PORT_PARENT tự tắt theo các protocol con dùng chung.
+# Tham số: $1 = tên protocol, $2 = "true"/"false"
+set_protocol_state_core() {
+    local proto="$1" want="$2" idx
+    idx=$(_find_proto_idx "$proto") || { echo "ERR: Không thấy protocol: $proto"; return 1; }
+    [ "$want" = "true" ] || [ "$want" = "false" ] || { echo "ERR: Giá trị enabled không hợp lệ: $want"; return 1; }
+
+    local entry port enabled
+    entry="${PROTO_LIST[$idx]}"
+    IFS=':' read -r proto port enabled <<< "$entry"
+
+    if [ "$want" = "$enabled" ]; then
+        echo "OK: $proto đã ở trạng thái $want sẵn rồi, không đổi gì"
+        return 0
+    fi
+
+    if [ "$want" = "true" ]; then
+        local is_shared=false
+        is_shared_meek_port_protocol "$proto" && is_shared=true
+        if $is_shared && ! is_parent_meek_enabled; then
+            echo "ERR: Chưa thể bật $proto - $SHARED_MEEK_PORT_PARENT đang TẮT, bật $SHARED_MEEK_PORT_PARENT trước"
+            return 1
+        fi
+        PROTO_LIST[$idx]="$proto:$port:true"
+        save_config
+        echo "OK: Đã bật $proto (port $port)"
+        if is_ws_experimental "$proto"; then
+            echo "OK: ⚠ $proto là protocol thử nghiệm - cần bản psiphond tùy biến, generate sẽ lỗi nếu dùng binary mặc định"
+        fi
+        warn_port_conflicts "$idx"
+    else
+        PROTO_LIST[$idx]="$proto:$port:false"
+        if [ "$proto" = "$SHARED_MEEK_PORT_PARENT" ]; then
+            sync_shared_meek_children
+        fi
+        save_config
+        echo "OK: Đã tắt $proto"
+    fi
+    return 0
+}
+
+# Đổi port của 1 protocol theo tên - KHÔNG hỏi gì, dùng cho web dashboard.
+# Tham số: $1 = tên protocol, $2 = port mới
+set_protocol_port_core() {
+    local proto="$1" new_port="$2" idx
+    idx=$(_find_proto_idx "$proto") || { echo "ERR: Không thấy protocol: $proto"; return 1; }
+    if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [ "$new_port" -lt 1 ] || [ "$new_port" -gt 65535 ]; then
+        echo "ERR: Port không hợp lệ: $new_port (cần 1-65535)"
+        return 1
+    fi
+
+    local entry port enabled
+    entry="${PROTO_LIST[$idx]}"
+    IFS=':' read -r proto port enabled <<< "$entry"
+
+    PROTO_LIST[$idx]="$proto:$new_port:$enabled"
+    save_config
+    echo "OK: Đã đổi port $proto → $new_port"
+    warn_port_conflicts "$idx"
+    return 0
+}
+
 # ================================================================
 # GENERATE & VÁ ENTRY
 # ================================================================

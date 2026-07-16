@@ -383,6 +383,51 @@ def api_token_kick():
     return jsonify(r)
 
 
+# ----------------------------------------------------------------------
+# API: liệt kê protocol
+# ----------------------------------------------------------------------
+@app.route("/api/protocols")
+@login_required
+def api_protocols():
+    r = run_panel_func("web_protocol_list_core", timeout=20)
+    if not r["ok"]:
+        return jsonify({"ok": False, "protocols": [], "error": r["output"]})
+    try:
+        return jsonify(json.loads(r["output"]))
+    except json.JSONDecodeError:
+        return jsonify({"ok": False, "protocols": [], "error": "Phản hồi không phải JSON hợp lệ."})
+
+
+# ----------------------------------------------------------------------
+# API: bật/tắt 1 protocol
+# ----------------------------------------------------------------------
+@app.route("/api/protocols/toggle", methods=["POST"])
+@login_required
+def api_protocols_toggle():
+    proto = (request.form.get("proto") or "").strip()
+    enabled = "true" if request.form.get("enabled") in ("1", "true", "on") else "false"
+    if not proto:
+        return jsonify({"ok": False, "output": "Thiếu tên protocol."}), 400
+    r = run_panel_func("set_protocol_state_core", proto, enabled, timeout=20)
+    return jsonify(r)
+
+
+# ----------------------------------------------------------------------
+# API: đổi port 1 protocol
+# ----------------------------------------------------------------------
+@app.route("/api/protocols/set-port", methods=["POST"])
+@login_required
+def api_protocols_set_port():
+    proto = (request.form.get("proto") or "").strip()
+    port = (request.form.get("port") or "").strip()
+    if not proto:
+        return jsonify({"ok": False, "output": "Thiếu tên protocol."}), 400
+    if not port.isdigit():
+        return jsonify({"ok": False, "output": "Port phải là số nguyên."}), 400
+    r = run_panel_func("set_protocol_port_core", proto, port, timeout=20)
+    return jsonify(r)
+
+
 if __name__ == "__main__":
     # Chạy dev server, bind localhost mặc định (an toàn hơn). Production nên
     # dùng gunicorn qua systemd unit đi kèm (xem README) + reverse proxy TLS.

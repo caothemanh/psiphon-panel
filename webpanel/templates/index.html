@@ -53,6 +53,18 @@
   main{max-width:1180px; margin:0 auto; padding:26px 28px;}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
   @media (max-width:860px){ .grid{grid-template-columns:1fr;} main{padding:18px;} header.topbar{padding:16px 18px;} .two-col{grid-template-columns:1fr !important;} }
+
+  /* ---------- Tabs ---------- */
+  .tabbar{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; border-bottom:1px solid var(--border);}
+  .tabbtn{
+    background:transparent; border:none; color:var(--dim); cursor:pointer;
+    font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:.03em;
+    padding:10px 16px; border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tabbtn:hover{color:var(--text);}
+  .tabbtn.active{color:var(--amber); border-bottom-color:var(--amber);}
+  .tabpane{display:none;}
+  .tabpane.active{display:block;}
   .full{grid-column:1 / -1;}
 
   .card{
@@ -181,6 +193,14 @@
 </header>
 
 <main>
+  <div class="tabbar">
+    <button class="tabbtn active" data-tab="overview" type="button">Tổng quan</button>
+    <button class="tabbtn" data-tab="protocol" type="button">Protocol</button>
+    <button class="tabbtn" data-tab="auth" type="button">psiphonAuth &amp; User</button>
+    <button class="tabbtn" data-tab="advanced" type="button">Nâng cao</button>
+  </div>
+
+  <div class="tabpane active" data-tab="overview">
   <div class="grid">
 
     <!-- Điều khiển -->
@@ -210,6 +230,31 @@
           <tr><td>Signing key (bí mật)</td><td id="s_signing">—</td></tr>
           <tr><td>Verification key</td><td id="s_verify">—</td></tr>
         </table>
+      </div>
+    </section>
+
+  </div>
+  </div> <!-- /tabpane overview -->
+
+  <div class="tabpane" data-tab="protocol">
+  <div class="grid">
+
+    <!-- Protocol -->
+    <section class="card full">
+      <div class="hd"><h2>Protocol &amp; Port</h2></div>
+      <div class="bd">
+        <p class="hint" style="margin:0 0 14px;">Bật/tắt protocol, đổi port. Đổi xong nhớ bấm "Generate lại server" ở dưới để áp dụng. Protocol có nhãn 🧪 là bản thử nghiệm cần psiphond tùy biến; nhãn ⇄ không có listener riêng, chỉ dùng port để gắn capability, yêu cầu protocol cha đang bật.</p>
+        <div style="overflow-x:auto;">
+          <table class="tbl" id="protoTable">
+            <thead>
+              <tr><th>Protocol</th><th>Port</th><th>Trạng thái</th><th>Thao tác</th></tr>
+            </thead>
+            <tbody id="protoTableBody">
+              <tr><td colspan="4" class="hint">Đang tải...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="outbox empty" id="protoOut"></div>
       </div>
     </section>
 
@@ -248,6 +293,12 @@
         </div>
       </div>
     </section>
+
+  </div>
+  </div> <!-- /tabpane protocol -->
+
+  <div class="tabpane" data-tab="auth">
+  <div class="grid">
 
     <!-- psiphonAuth & giới hạn băng thông -->
     <section class="card full">
@@ -371,6 +422,12 @@
       </div>
     </section>
 
+  </div>
+  </div> <!-- /tabpane auth -->
+
+  <div class="tabpane" data-tab="advanced">
+  <div class="grid">
+
     <!-- Config hiện tại -->
     <section class="card full">
       <div class="hd"><h2>Cấu hình hiện tại</h2></div>
@@ -407,6 +464,7 @@
     </section>
 
   </div>
+  </div> <!-- /tabpane advanced -->
 </main>
 
 <script>
@@ -806,6 +864,95 @@ $('tokenTableBody').addEventListener('click', async (e) => {
       printOut($('tokenActionOut'), r);
     }catch(err){
       printOut($('tokenActionOut'), {ok:false, output:'Lỗi mạng: ' + err});
+    }
+    btn.disabled = false;
+    return;
+  }
+});
+
+// ---------------- Tabs ----------------
+document.querySelectorAll('.tabbtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tabbtn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.tabpane').forEach(p => p.classList.toggle('active', p.dataset.tab === tab));
+    if (tab === 'protocol') refreshProtocols();
+  });
+});
+
+// ---------------- Protocol & Port ----------------
+async function refreshProtocols(){
+  const tbody = $('protoTableBody');
+  try{
+    const r = await callApi('/api/protocols');
+    const protos = r.protocols || [];
+    if (!r.ok && protos.length === 0){
+      tbody.innerHTML = `<tr><td colspan="4" class="hint">${esc(r.error || 'Không tải được danh sách protocol.')}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = protos.map(p => {
+      let label = esc(p.proto);
+      if (p.is_experimental) label = '🧪 ' + label;
+      if (p.is_shared) label = '⇄ ' + label;
+      const badge = p.enabled
+        ? '<span class="tag yes">✓ BẬT</span>'
+        : '<span class="tag no">✗ TẮT</span>';
+      const toggleLabel = p.enabled ? 'Tắt' : 'Bật';
+      return `<tr data-proto="${esc(p.proto)}">
+        <td>${label}</td>
+        <td><input type="text" class="mini-input proto-port-input" value="${esc(p.port)}" inputmode="numeric" style="width:76px;"></td>
+        <td>${badge}</td>
+        <td>
+          <div class="row-actions">
+            <button class="btn-mini proto-toggle" type="button">${toggleLabel}</button>
+            <button class="btn-mini proto-set-port" type="button">Đổi port</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }catch(e){
+    tbody.innerHTML = `<tr><td colspan="4" class="hint">Lỗi mạng: ${esc(String(e))}</td></tr>`;
+  }
+}
+
+$('protoTableBody').addEventListener('click', async (e) => {
+  const tr = e.target.closest('tr[data-proto]');
+  if (!tr) return;
+  const proto = tr.dataset.proto;
+
+  if (e.target.classList.contains('proto-toggle')){
+    const isTurningOff = e.target.textContent.trim() === 'Tắt';
+    if (isTurningOff && !confirm(`Tắt ${proto}?`)) return;
+    const btn = e.target; btn.disabled = true;
+    try{
+      const fd = new FormData(); fd.set('proto', proto); fd.set('enabled', isTurningOff ? '0' : '1');
+      const r = await postForm('/api/protocols/toggle', fd);
+      if (r._unauthorized) return;
+      printOut($('protoOut'), r);
+      if (r.ok) refreshProtocols();
+    }catch(err){
+      printOut($('protoOut'), {ok:false, output:'Lỗi mạng: ' + err});
+    }
+    btn.disabled = false;
+    return;
+  }
+
+  if (e.target.classList.contains('proto-set-port')){
+    const input = tr.querySelector('.proto-port-input');
+    const val = input.value.trim();
+    if (!/^[0-9]+$/.test(val)){
+      printOut($('protoOut'), {ok:false, output:'Port phải là số nguyên.'});
+      return;
+    }
+    const btn = e.target; btn.disabled = true;
+    try{
+      const fd = new FormData(); fd.set('proto', proto); fd.set('port', val);
+      const r = await postForm('/api/protocols/set-port', fd);
+      if (r._unauthorized) return;
+      printOut($('protoOut'), r);
+      if (r.ok) refreshProtocols();
+    }catch(err){
+      printOut($('protoOut'), {ok:false, output:'Lỗi mạng: ' + err});
     }
     btn.disabled = false;
     return;

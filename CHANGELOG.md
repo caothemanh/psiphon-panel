@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased (10)
+- **Thêm quản lý Protocol/Port lên Web Dashboard + chia giao diện theo tab.**
+  Trang web trước đây xếp hết các card theo 1 cột dài, càng thêm tính năng
+  càng khó nhìn. Giờ chia làm 4 tab:
+  - **Tổng quan**: Điều khiển server + Trạng thái.
+  - **Protocol**: bảng bật/tắt + đổi port từng protocol (mới), Region,
+    Generate, và xem/tải server entry - gom chung vì đều là các bước đi
+    liền nhau khi đổi cấu hình protocol.
+  - **psiphonAuth & User**: sinh keypair, giới hạn mặc định, import
+    verification key, quản lý token/user.
+  - **Nâng cao**: xem cấu hình JSON hiện tại, log realtime.
+  - Backend: 3 hàm mới `web_protocol_list_core`, `set_protocol_state_core`,
+    `set_protocol_port_core` - áp dụng đúng ràng buộc như CLI menu [2]
+    (protocol dùng-chung-port yêu cầu protocol cha đang bật mới bật được;
+    tắt protocol cha tự tắt theo các protocol con), cảnh báo xung đột port
+    (`warn_port_conflicts`) và nhãn protocol thử nghiệm y hệt CLI. 3 route
+    Flask mới `/api/protocols`, `/api/protocols/toggle`,
+    `/api/protocols/set-port`.
+  - Đổi protocol/port trên web KHÔNG tự generate lại - vẫn phải bấm
+    "Generate lại server" (đúng ý nghĩa vốn có: đổi xong mới generate 1
+    lần, tránh generate lãng phí mỗi lần đổi 1 field).
+
 ## Unreleased (9)
 - **Thêm "Quản lý User" (psiphonAuth Token) lên Web Dashboard.** Trước đây
   web chỉ có "Sinh cặp khóa ký" (keypair) - phần cấp/quản lý token cho

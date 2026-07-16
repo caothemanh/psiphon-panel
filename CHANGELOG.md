@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased (11)
+- **Sửa: menu `[7] Cài lại / cập nhật dashboard` LUÔN bắt đặt lại mật khẩu
+  + chọn lại chế độ public/private mỗi lần chạy**, kể cả khi chỉ định
+  cập nhật CODE (không đổi gì khác) - rất bất tiện, và là lý do "web
+  không tự cập nhật" phải "cài lại" nghe rất nặng. Giờ hàm này thực sự
+  idempotent: nếu đã có mật khẩu/chế độ truy cập từ trước, mặc định GIỮ
+  NGUYÊN (chỉ hỏi lại nếu người dùng chủ động chọn đặt lại), chỉ khi cài
+  MỚI hoàn toàn mới hỏi như trước.
+- **Menu `[8] Cập nhật Panel` giờ hỏi luôn có muốn đồng bộ code Web
+  Dashboard không** (nếu đã cài) - chỉ tải lại `app.py`/`templates`, GIỮ
+  NGUYÊN mật khẩu/venv/chế độ truy cập, rồi tự restart service. Không cần
+  nhớ vào lại menu [7] mỗi lần muốn web dùng đúng code mới nhất.
+
 ## Unreleased (10)
 - **Thêm quản lý Protocol/Port lên Web Dashboard + chia giao diện theo tab.**
   Trang web trước đây xếp hết các card theo 1 cột dài, càng thêm tính năng

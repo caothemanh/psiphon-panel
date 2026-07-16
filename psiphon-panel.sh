@@ -3023,25 +3023,52 @@ install_web_dashboard() {
     fi
     echo -e "${G}  ✓ OK${N}"
 
-    echo -e "${Y}  [4/6] Đặt mật khẩu dashboard...${N}"
-    local pw1 pw2
-    while true; do
-        read -rs -p "  Mật khẩu mới cho dashboard (>= 8 ký tự): " pw1; echo
-        read -rs -p "  Nhập lại: " pw2; echo
-        [ "$pw1" = "$pw2" ] || { echo -e "${R}  Không khớp, thử lại.${N}"; continue; }
-        [ ${#pw1} -ge 8 ] || { echo -e "${R}  Cần >= 8 ký tự.${N}"; continue; }
-        break
-    done
-    local pw_hash secret_key
-    pw_hash=$(python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())" "$pw1")
-    secret_key=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    unset pw1 pw2
-    echo -e "${G}  ✓ OK${N}"
+    echo -e "${Y}  [4/6] Mật khẩu dashboard...${N}"
+    local pw_hash secret_key reset_pw
+    if [ -f "$WEBPANEL_ENV" ] && grep -q "^DASHBOARD_PASSWORD_HASH=" "$WEBPANEL_ENV" 2>/dev/null; then
+        # Đã cài trước đó rồi (đang chạy [1] chỉ để LẤY CODE MỚI, VD sau khi
+        # thêm tab Protocol) - mặc định GIỮ NGUYÊN mật khẩu + secret key cũ.
+        # Trước đây bắt đặt lại mật khẩu MỖI LẦN chạy [1], dù chỉ định cập
+        # nhật code, rất bất tiện và không giống hành vi "cập nhật" thực sự.
+        if confirm "  Đã có mật khẩu dashboard. Đặt lại mật khẩu mới? (mặc định: KHÔNG, giữ nguyên)"; then
+            reset_pw="y"
+        else
+            reset_pw="n"
+            pw_hash=$(grep "^DASHBOARD_PASSWORD_HASH=" "$WEBPANEL_ENV" | cut -d= -f2-)
+            secret_key=$(grep "^DASHBOARD_SECRET_KEY=" "$WEBPANEL_ENV" | cut -d= -f2-)
+            echo -e "${G}  ✓ Giữ nguyên mật khẩu hiện có${N}"
+        fi
+    else
+        reset_pw="y"
+    fi
+    if [ "$reset_pw" = "y" ]; then
+        local pw1 pw2
+        while true; do
+            read -rs -p "  Mật khẩu mới cho dashboard (>= 8 ký tự): " pw1; echo
+            read -rs -p "  Nhập lại: " pw2; echo
+            [ "$pw1" = "$pw2" ] || { echo -e "${R}  Không khớp, thử lại.${N}"; continue; }
+            [ ${#pw1} -ge 8 ] || { echo -e "${R}  Cần >= 8 ký tự.${N}"; continue; }
+            break
+        done
+        pw_hash=$(python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())" "$pw1")
+        secret_key=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+        unset pw1 pw2
+        echo -e "${G}  ✓ OK${N}"
+    fi
 
-    echo -e "${Y}  [5/6] Chọn chế độ truy cập...${N}"
-    echo -e "  ${C}Mặc định dashboard CHỈ chạy nội bộ (127.0.0.1) - an toàn, cần SSH tunnel để vào.${N}"
-    confirm "  Mở public qua http://$SERVER_IP:$WEBPANEL_PORT luôn (KHÔNG mã hoá, chỉ nên dùng tạm)?" \
-        && local bind="0.0.0.0:$WEBPANEL_PORT" || local bind="127.0.0.1:$WEBPANEL_PORT"
+    echo -e "${Y}  [5/6] Chế độ truy cập...${N}"
+    local bind
+    if [ -f "$WEBPANEL_SERVICE_FILE" ]; then
+        # Đã có service từ trước - giữ nguyên bind hiện tại, không hỏi lại
+        # mỗi lần cập nhật code (chỉ hỏi khi cài MỚI hoàn toàn).
+        bind=$(grep -oP '(?<=-b )\S+' "$WEBPANEL_SERVICE_FILE" 2>/dev/null)
+        [ -z "$bind" ] && bind="127.0.0.1:$WEBPANEL_PORT"
+        echo -e "${G}  ✓ Giữ nguyên chế độ truy cập hiện tại: $bind${N}"
+    else
+        echo -e "  ${C}Mặc định dashboard CHỈ chạy nội bộ (127.0.0.1) - an toàn, cần SSH tunnel để vào.${N}"
+        confirm "  Mở public qua http://$SERVER_IP:$WEBPANEL_PORT luôn (KHÔNG mã hoá, chỉ nên dùng tạm)?" \
+            && bind="0.0.0.0:$WEBPANEL_PORT" || bind="127.0.0.1:$WEBPANEL_PORT"
+    fi
 
     cat > "$WEBPANEL_ENV" << EOF
 DASHBOARD_PASSWORD_HASH=$pw_hash
@@ -3162,6 +3189,30 @@ update_panel_self() {
     mv /usr/local/bin/psiphon-panel.new /usr/local/bin/psiphon-panel
     chmod +x /usr/local/bin/psiphon-panel
     echo -e "${G}  ✓ Đã cập nhật /usr/local/bin/psiphon-panel${N}"
+
+    # Web Dashboard KHÔNG tự động theo bản CLI - trước đây phải nhớ tự vào
+    # lại menu [7] mới có code mới (app.py/index.html). Hỏi luôn ở đây cho
+    # đỡ quên. Chỉ đồng bộ CODE (app.py/templates), KHÔNG đụng tới mật
+    # khẩu/venv/chế độ truy cập đang có.
+    if is_webpanel_installed; then
+        echo ""
+        if confirm "  Web Dashboard đang cài - đồng bộ code mới nhất (giữ nguyên mật khẩu) luôn?"; then
+            echo -e "${Y}  Đang tải code dashboard mới nhất...${N}"
+            mkdir -p "$WEBPANEL_DIR/templates"
+            local f ok=1
+            for f in app.py requirements.txt templates/index.html templates/login.html; do
+                curl -fsSL "$WEBPANEL_BASE_URL/$f" -o "$WEBPANEL_DIR/$f" || ok=0
+            done
+            if [ "$ok" = "1" ]; then
+                "$WEBPANEL_DIR/venv/bin/pip" install --quiet -r "$WEBPANEL_DIR/requirements.txt" 2>/dev/null
+                systemctl restart psiphon-dashboard
+                echo -e "${G}  ✓ Đã đồng bộ code + restart dashboard${N}"
+            else
+                echo -e "${R}  ✗ Tải 1 vài file thất bại, dashboard vẫn dùng code cũ. Thử lại sau hoặc dùng menu [7].${N}"
+            fi
+        fi
+    fi
+
     echo -e "${C}  Khởi động lại panel với bản mới...${N}"
     sleep 1
     exec /usr/local/bin/psiphon-panel

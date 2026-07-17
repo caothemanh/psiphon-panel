@@ -657,14 +657,8 @@ async function refreshEntry(){
     $('entryHex').value = r.hex || '';
   }catch(e){}
 }
-$('btnCopyEntry').addEventListener('click', async () => {
-  const btn = $('btnCopyEntry');
-  try{
-    await navigator.clipboard.writeText($('entryHex').value);
-    const orig = btn.textContent; btn.textContent = '✓ Đã copy'; setTimeout(() => btn.textContent = orig, 1500);
-  }catch(e){
-    $('entryHex').select(); document.execCommand('copy');
-  }
+$('btnCopyEntry').addEventListener('click', () => {
+  copyToClipboard($('entryHex').value, $('btnCopyEntry'));
 });
 
 // ---------------- Generate keypair ----------------
@@ -808,14 +802,47 @@ $('tokenIssueForm').addEventListener('submit', async (e) => {
 });
 
 async function copyToClipboard(text, btn){
-  try{
-    await navigator.clipboard.writeText(text);
-  }catch(e){
-    const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); document.body.removeChild(ta);
+  let copied = false;
+  // navigator.clipboard chỉ hoạt động trên "secure context" (https hoặc
+  // localhost). Dashboard chạy http:// thuần trên IP thật -> API này
+  // thường KHÔNG TỒN TẠI trên di động (không phải lỗi, chủ động chặn),
+  // nên luôn thử nhưng không dựa hoàn toàn vào nó.
+  if (navigator.clipboard && window.isSecureContext){
+    try{
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    }catch(e){ /* rơi xuống fallback bên dưới */ }
   }
-  if (btn){ const orig = btn.textContent; btn.textContent = '✓'; setTimeout(() => btn.textContent = orig, 1200); }
+  if (!copied){
+    // Fallback bằng textarea + execCommand('copy') - hoạt động trên
+    // context không an toàn (http), nhưng iOS Safari cần: textarea phải
+    // NẰM TRONG VIEWPORT (không để off-screen), phải gọi focus() trước
+    // select(), và dùng setSelectionRange thay vì chỉ .select() để chọn
+    // được toàn bộ text trên input readonly.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.width = '1px';
+    ta.style.height = '1px';
+    ta.style.padding = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.setSelectionRange(0, text.length);
+    try{
+      copied = document.execCommand('copy');
+    }catch(e){ copied = false; }
+    document.body.removeChild(ta);
+  }
+  if (btn){
+    const orig = btn.textContent;
+    btn.textContent = copied ? '✓ Đã copy' : '⚠ Bấm giữ để copy tay';
+    setTimeout(() => btn.textContent = orig, 1800);
+  }
+  return copied;
 }
 
 $('btnCopyTokPlain').addEventListener('click', () => copyToClipboard($('tokIssuedPlain').value, $('btnCopyTokPlain')));

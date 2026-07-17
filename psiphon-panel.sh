@@ -183,6 +183,15 @@ load_config() {
             ((i++))
         done
     fi
+    # WEBPANEL_PORT mặc định 8088 ở default_config - nếu đã đổi qua web
+    # (menu Cài đặt Dashboard > Đổi port), giá trị thật được lưu riêng
+    # trong WEBPANEL_ENV (không phải CONFIG_FILE, vì đây là cấu hình của
+    # dashboard, không phải của psiphon server). Đọc đè lên nếu có.
+    if [ -f "$WEBPANEL_ENV" ]; then
+        local wp
+        wp=$(grep "^WEBPANEL_PORT=" "$WEBPANEL_ENV" 2>/dev/null | cut -d= -f2)
+        [ -n "$wp" ] && WEBPANEL_PORT="$wp"
+    fi
 }
 
 save_config() {

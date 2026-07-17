@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased (12)
+- **Sửa copy token/server entry không hoạt động trên di động.** Dashboard
+  chạy `http://` thuần (không TLS) trên IP thật - `navigator.clipboard`
+  chỉ hoạt động trên "secure context" (https hoặc localhost) nên trình
+  duyệt di động (đặc biệt iOS Safari) thường không cho dùng API này qua
+  http, và cách dự phòng cũ (`textarea` ẩn + `execCommand('copy')`) cũng
+  hay fail trên mobile vì thiếu `focus()`/chọn vùng đúng cách trước khi
+  copy. Viết lại `copyToClipboard()` dùng chung cho MỌI nút copy (server
+  entry hex, token vừa cấp, token trong danh sách): luôn thử
+  `navigator.clipboard` trước, fallback bằng textarea đặt trong viewport +
+  `focus()` + `setSelectionRange()` (đúng cách iOS Safari cần), báo rõ
+  "✓ Đã copy" hoặc "⚠ Bấm giữ để copy tay" nếu cả 2 cách đều fail thay vì
+  im lặng không phản hồi gì.
+- Gộp nút "Copy hex" (Server Entry) về dùng chung hàm `copyToClipboard()`
+  thay vì code copy riêng (trước đây không có fallback tốt cho mobile).
+
 ## Unreleased (11)
 - **Sửa: menu `[7] Cài lại / cập nhật dashboard` LUÔN bắt đặt lại mật khẩu
   + chọn lại chế độ public/private mỗi lần chạy**, kể cả khi chỉ định

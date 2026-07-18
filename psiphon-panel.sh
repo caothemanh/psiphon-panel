@@ -52,22 +52,41 @@ INJECT_SCRIPT="$INSTALL_DIR/inject_config.py"
 # rồi điền URL vào đây; nếu để trống, panel sẽ nhắc bạn copy tay vào
 # $AUTHGEN_BINARY.
 #
+# Dò kiến trúc CPU để tải đúng binary - trước đây panel chỉ có 1 tên file
+# cố định (giả định amd64), khiến board ARM (VD Armbian, aarch64) tải về
+# đúng file nhưng SAI kiến trúc, chạy generate sẽ báo "Exec format error"
+# rất khó hiểu nếu không biết nguyên nhân. Quy ước tên file trong repo
+# caothemanh/psiphond giờ có hậu tố kiến trúc: psiphond-amd64,
+# psiphond-arm64, psiphon-authgen-amd64, psiphon-authgen-arm64 (khớp tên
+# artifact build-psiphond.yml đang xuất ra, chỉ bỏ "linux-" ở giữa).
+detect_binary_arch() {
+    case "$(uname -m)" in
+        x86_64|amd64) echo "amd64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) echo "" ;;
+    esac
+}
+BINARY_ARCH=$(detect_binary_arch)
+
 # LƯU Ý AN TOÀN: đây là binary thực thi với quyền root (qua script này).
 # Link dưới trỏ tới repo GitHub của bên thứ ba (không phải repo chính thức
 # Psiphon Inc.) — bạn tự chịu trách nhiệm xác minh nguồn/tác giả trước khi
 # dùng trên server thật. Nếu có thể, nên tự build từ mã nguồn thay vì tải
 # binary dựng sẵn.
-AUTHGEN_URLS=(
-    "https://raw.githubusercontent.com/caothemanh/psiphond/main/psiphon-authgen"
-    "https://cdn.jsdelivr.net/gh/caothemanh/psiphond@main/psiphon-authgen"
-    "https://github.com/caothemanh/psiphond/raw/main/psiphon-authgen"
-)
-
-PSIPHOND_URLS=(
-    "https://raw.githubusercontent.com/caothemanh/psiphond/main/psiphond"
-    "https://cdn.jsdelivr.net/gh/caothemanh/psiphond@main/psiphond"
-    "https://github.com/caothemanh/psiphond/raw/main/psiphond"
-)
+AUTHGEN_URLS=()
+PSIPHOND_URLS=()
+if [ -n "$BINARY_ARCH" ]; then
+    AUTHGEN_URLS=(
+        "https://raw.githubusercontent.com/caothemanh/psiphond/main/psiphon-authgen-$BINARY_ARCH"
+        "https://cdn.jsdelivr.net/gh/caothemanh/psiphond@main/psiphon-authgen-$BINARY_ARCH"
+        "https://github.com/caothemanh/psiphond/raw/main/psiphon-authgen-$BINARY_ARCH"
+    )
+    PSIPHOND_URLS=(
+        "https://raw.githubusercontent.com/caothemanh/psiphond/main/psiphond-$BINARY_ARCH"
+        "https://cdn.jsdelivr.net/gh/caothemanh/psiphond@main/psiphond-$BINARY_ARCH"
+        "https://github.com/caothemanh/psiphond/raw/main/psiphond-$BINARY_ARCH"
+    )
+fi
 PANEL_URL="https://raw.githubusercontent.com/caothemanh/psiphon-panel/main/psiphon-panel.sh"
 
 # --- Web Dashboard (webpanel/) ---
@@ -491,7 +510,11 @@ ensure_authgen() {
     [ -x "$AUTHGEN_BINARY" ] && return 0
 
     if [ "${#AUTHGEN_URLS[@]}" -eq 0 ]; then
-        echo -e "${R}  Chưa có psiphon-authgen tại $AUTHGEN_BINARY${N}"
+        if [ -z "$BINARY_ARCH" ]; then
+            echo -e "${R}  Kiến trúc CPU '$(uname -m)' chưa có psiphon-authgen dựng sẵn (chỉ có amd64/arm64).${N}"
+        else
+            echo -e "${R}  Chưa có psiphon-authgen tại $AUTHGEN_BINARY${N}"
+        fi
         echo -e "${Y}  Tool này phải tự build từ package accesscontrol trong${N}"
         echo -e "${Y}  chính repo psiphon-tunnel-core bạn dùng để build psiphond custom.${N}"
         echo -e "${Y}  Build xong, copy binary vào: $AUTHGEN_BINARY${N}"
@@ -1572,6 +1595,10 @@ menu_install() {
     echo -e "${G}  ✓ OK${N}"
 
     echo -e "${Y}  [2/7] Tải psiphond...${N}"
+    if [ -z "$BINARY_ARCH" ]; then
+        echo -e "${R}  Kiến trúc CPU '$(uname -m)' chưa có binary dựng sẵn (chỉ có amd64/arm64).${N}"
+        echo -e "${R}  Cần tự build psiphond cho kiến trúc này rồi copy tay vào: $INSTALL_DIR/${N}"
+    fi
     mkdir -p "$INSTALL_DIR"
     DOWNLOAD_OK=0
     for url in "${PSIPHOND_URLS[@]}"; do

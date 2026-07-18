@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased (16)
+- **Panel tự dò kiến trúc CPU để tải đúng binary `psiphond`/`psiphon-
+  authgen`.** Trước đây chỉ có 1 tên file cố định (`psiphond`,
+  `psiphon-authgen`), giả định amd64 - board ARM (VD Armbian, aarch64)
+  tải về đúng file nhưng SAI kiến trúc, generate báo "Exec format error"
+  rất khó hiểu. Thêm `detect_binary_arch()` (map `uname -m` →
+  amd64/arm64), tự chọn URL đúng hậu tố kiến trúc
+  (`psiphond-amd64`/`psiphond-arm64`...). Báo lỗi rõ ràng ngay từ đầu nếu
+  kiến trúc không được hỗ trợ (chỉ có amd64/arm64), thay vì tải nhầm rồi
+  mới báo lỗi mơ hồ lúc generate.
+  - **Cần đổi quy ước ở repo `caothemanh/psiphond`:** đổi tên file đang
+    lưu từ `psiphond`/`psiphon-authgen` (1 bản) sang 4 file riêng theo
+    kiến trúc: `psiphond-amd64`, `psiphond-arm64`,
+    `psiphon-authgen-amd64`, `psiphon-authgen-arm64` (khớp đúng tên
+    artifact `build-psiphond.yml` đang xuất ra, chỉ bỏ phần `linux-` ở
+    giữa tên).
+
 ## Unreleased (15)
 - **Thêm đổi port cho CHÍNH Web Dashboard** (khác với port từng protocol
   psiphon, vốn đã đổi được từ trước) - card mới "Port của Web Dashboard"

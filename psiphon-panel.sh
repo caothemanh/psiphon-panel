@@ -240,6 +240,7 @@ web_status_json() {
     WS_ACCESS_TYPE="$AUTH_ACCESS_TYPE" \
     WS_LIMIT_KBPS="$DEFAULT_LIMIT_KBPS" \
     WS_REGION="$REGION" \
+    WS_WEBPANEL_PORT="$WEBPANEL_PORT" \
     WS_HAS_SIGNING_KEY="$([ -f "$SIGNING_KEY_FILE" ] && echo true || echo false)" \
     WS_HAS_VERIFY_KEY="$([ -f "$VERIFY_KEY_FILE" ] && echo true || echo false)" \
     WS_CONFIG_PATH="$INSTALL_DIR/psiphond.config" \
@@ -265,6 +266,7 @@ print(json.dumps({
     'access_type': os.environ['WS_ACCESS_TYPE'],
     'default_limit_kbps': os.environ['WS_LIMIT_KBPS'],
     'region': os.environ['WS_REGION'],
+    'webpanel_port': os.environ['WS_WEBPANEL_PORT'],
     'has_signing_key': os.environ['WS_HAS_SIGNING_KEY'] == 'true',
     'has_verify_key': os.environ['WS_HAS_VERIFY_KEY'] == 'true',
     'verify_key_ring': cfg.get('AccessControlVerificationKeyRing'),
@@ -1030,6 +1032,130 @@ with open(sys.argv[1], 'w') as f:
     return 0
 }
 
+# Xoá HÀNG LOẠT token khỏi sổ theo dõi (tokens.log, authorizations.json,
+# authorizations-blocks.json, device-limits.json) - KHÔNG hỏi gì, dùng cho
+# web dashboard.
+#
+# QUAN TRỌNG - GIỚI HẠN THẬT SỰ CỦA THAO TÁC NÀY: psiphonAuth xác thực
+# bằng CHỮ KÝ mật mã (SigningKeyID + Signature) dựa trên verification key
+# nhúng trong AccessControlVerificationKeyRing - psiphond KHÔNG đọc
+# authorizations.json/tokens.log lúc chạy để kiểm tra token có "còn tồn
+# tại" hay không. Nói cách khác: xoá ở đây chỉ dọn sổ sách phía admin (để
+# danh sách gọn, không hiện token cũ nữa), KHÔNG THU HỒI được token đã cấp
+# - ai đã cầm chuỗi token đó vẫn kết nối được bình thường tới khi hết hạn
+# tự nhiên. Muốn thu hồi thật sự chỉ có cách sinh lại signing keypair mới
+# (vô hiệu hoá TOÀN BỘ token cũ, không chọn lọc được).
+#
+# Tham số: $1 = JSON array các AuthorizationID cần xoá, VD: ["id1","id2"]
+delete_auth_tokens_core() {
+    local ids_json="$1"
+    if [ -z "$ids_json" ]; then
+        echo "ERR: Thiếu danh sách AuthorizationID cần xoá"
+        return 1
+    fi
+    if [ ! -f "$TOKENS_LOG" ]; then
+        echo "ERR: Chưa có token nào (không thấy tokens.log)"
+        return 1
+    fi
+
+    IDS_JSON="$ids_json" TOKENS_LOG_PATH="$TOKENS_LOG" AUTH_ARRAY_PATH="$AUTH_ARRAY_FILE" \
+    AUTH_BLOCKS_PATH="$AUTH_BLOCKS_FILE" DEVICE_LIMITS_PATH="$DEVICE_LIMITS_FILE" python3 -c "
+import json, os, sys
+
+try:
+    want_delete = set(json.loads(os.environ['IDS_JSON']))
+except (json.JSONDecodeError, TypeError):
+    print('ERR: Danh sách AuthorizationID không phải JSON hợp lệ')
+    sys.exit(1)
+if not want_delete:
+    print('ERR: Danh sách AuthorizationID rỗng')
+    sys.exit(1)
+
+tokens_log_path = os.environ['TOKENS_LOG_PATH']
+kept_lines = []
+removed_tokens = set()
+removed_ids = set()
+with open(tokens_log_path) as f:
+    for line in f:
+        raw = line.rstrip('\n')
+        if not raw.strip():
+            continue
+        parts = [p.strip() for p in raw.split('|')]
+        auth_id = None
+        if len(parts) >= 5:
+            auth_id = parts[4].replace('authID=', '').strip()
+        if auth_id in want_delete:
+            removed_ids.add(auth_id)
+            if len(parts) >= 6:
+                removed_tokens.add('|'.join(parts[5:]).strip())
+        else:
+            kept_lines.append(raw)
+
+if not removed_ids:
+    print('ERR: Không tìm thấy AuthorizationID nào khớp trong tokens.log')
+    sys.exit(1)
+
+with open(tokens_log_path, 'w') as f:
+    for l in kept_lines:
+        f.write(l + '\n')
+
+# authorizations.json: mảng JSON các token thuần
+aa_path = os.environ['AUTH_ARRAY_PATH']
+if os.path.isfile(aa_path):
+    try:
+        with open(aa_path) as f:
+            arr = json.load(f)
+        if isinstance(arr, list):
+            arr = [t for t in arr if t not in removed_tokens]
+            with open(aa_path, 'w') as f:
+                json.dump(arr, f, separators=(', ', ': '))
+                f.write('\n')
+    except (json.JSONDecodeError, FileNotFoundError):
+        pass
+
+# authorizations-blocks.json: mỗi dòng 1 mảng JSON [token]
+ab_path = os.environ['AUTH_BLOCKS_PATH']
+if os.path.isfile(ab_path):
+    kept_blocks = []
+    with open(ab_path) as f:
+        for line in f:
+            raw = line.rstrip('\n')
+            if not raw.strip():
+                continue
+            try:
+                block = json.loads(raw)
+            except json.JSONDecodeError:
+                kept_blocks.append(raw)
+                continue
+            if isinstance(block, list) and len(block) == 1 and block[0] in removed_tokens:
+                continue
+            kept_blocks.append(raw)
+    with open(ab_path, 'w') as f:
+        for b in kept_blocks:
+            f.write(b + '\n')
+
+# device-limits.json: dict authID -> limit, xoá key tương ứng nếu có
+dl_path = os.environ['DEVICE_LIMITS_PATH']
+if os.path.isfile(dl_path):
+    try:
+        with open(dl_path) as f:
+            limits = json.load(f)
+        if isinstance(limits, dict):
+            changed = False
+            for rid in removed_ids:
+                if rid in limits:
+                    del limits[rid]
+                    changed = True
+            if changed:
+                with open(dl_path, 'w') as f:
+                    json.dump(limits, f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        pass
+
+print(f'OK: Đã xoá {len(removed_ids)} token khỏi sổ theo dõi (KHÔNG thu hồi - token đã cấp vẫn dùng được tới khi hết hạn)')
+"
+}
+
 # Ngắt kết nối ngay lập tức thiết bị đang giữ 1 authorization ID cụ thể,
 # KHÔNG thu hồi vĩnh viễn - token vẫn còn hiệu lực, slot sẽ trống ngay để
 # thiết bị tiếp theo (chủ thật hoặc không) chiếm lại theo đúng device limit.
@@ -1142,6 +1268,85 @@ set_region_core() {
     REGION="$region"
     save_config
     echo "OK: Đã đặt Region = $REGION (áp dụng ở lần generate tiếp theo)"
+    return 0
+}
+
+# Đổi port CHÍNH dashboard web đang lắng nghe (khác hẳn port của từng
+# protocol psiphon) - dùng cho web dashboard, KHÔNG hỏi gì. In JSON vì
+# cần trả về port/host mới để frontend biết đường redirect sau khi restart.
+#
+# LƯU Ý QUAN TRỌNG: request gọi hàm này đang được chính service SẮP bị
+# restart phục vụ - nếu restart ngay lập tức, response sẽ không kịp trả
+# về trình duyệt (client thấy lỗi kết nối, dù đổi port đã thành công).
+# Nên: ghi cấu hình xong, lên lịch restart TRỄ 2 giây chạy nền
+# (disown khỏi tiến trình cha), rồi trả response ngay - trình duyệt có đủ
+# thời gian nhận response trước khi service thực sự đổi port.
+# Tham số: $1 = port mới
+set_webpanel_port_core() {
+    local new_port="$1"
+
+    if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [ "$new_port" -lt 1 ] || [ "$new_port" -gt 65535 ]; then
+        echo '{"ok": false, "error": "Port khong hop le (can 1-65535)"}'
+        return 1
+    fi
+    if [ ! -f "$WEBPANEL_SERVICE_FILE" ]; then
+        echo '{"ok": false, "error": "Chua cai Web Dashboard"}'
+        return 1
+    fi
+    if [ "$new_port" = "$WEBPANEL_PORT" ]; then
+        WEBPANEL_PORT="$new_port" PORT="$new_port" python3 -c "
+import json, os
+print(json.dumps({'ok': True, 'unchanged': True, 'new_port': int(os.environ['PORT'])}))
+"
+        return 0
+    fi
+
+    # Dò xem port mới có đang bị tiến trình KHÁC (không phải chính
+    # gunicorn của dashboard) chiếm không, tránh đổi xong rồi service
+    # fail-to-bind (đây đúng là lý do bạn cần tính năng này ban đầu -
+    # port 8088 mặc định bị trùng với dịch vụ khác trên VPS).
+    if command -v ss >/dev/null 2>&1; then
+        local occupied
+        occupied=$(ss -ltnp 2>/dev/null | grep ":$new_port ")
+        if [ -n "$occupied" ] && ! echo "$occupied" | grep -q "gunicorn"; then
+            PORT="$new_port" python3 -c "
+import json, os
+print(json.dumps({'ok': False, 'error': f\"Port {os.environ['PORT']} có vẻ đang bị tiến trình khác dùng trên VPS này, chọn port khác\"}))
+"
+            return 1
+        fi
+    fi
+
+    local host
+    host=$(grep -oP '(?<=-b )[^:]+' "$WEBPANEL_SERVICE_FILE" 2>/dev/null)
+    [ -z "$host" ] && host="127.0.0.1"
+
+    sed -i "s#-b $host:[0-9]\+#-b $host:$new_port#" "$WEBPANEL_SERVICE_FILE"
+
+    if grep -q "^WEBPANEL_PORT=" "$WEBPANEL_ENV" 2>/dev/null; then
+        sed -i "s/^WEBPANEL_PORT=.*/WEBPANEL_PORT=$new_port/" "$WEBPANEL_ENV"
+    else
+        echo "WEBPANEL_PORT=$new_port" >> "$WEBPANEL_ENV"
+    fi
+
+    if [ "$host" = "0.0.0.0" ] && command -v ufw >/dev/null 2>&1; then
+        ufw allow "$new_port"/tcp >/dev/null 2>&1
+        ufw delete allow "$WEBPANEL_PORT"/tcp >/dev/null 2>&1
+    fi
+
+    systemctl daemon-reload
+
+    ( sleep 2; systemctl restart psiphon-dashboard ) >/dev/null 2>&1 &
+    disown
+
+    NEW_PORT="$new_port" HOST_PART="$host" python3 -c "
+import json, os
+print(json.dumps({
+    'ok': True,
+    'new_port': int(os.environ['NEW_PORT']),
+    'host': os.environ['HOST_PART'],
+}))
+"
     return 0
 }
 
@@ -3083,6 +3288,7 @@ install_web_dashboard() {
 DASHBOARD_PASSWORD_HASH=$pw_hash
 DASHBOARD_SECRET_KEY=$secret_key
 PANEL_SCRIPT_PATH=/usr/local/bin/psiphon-panel
+WEBPANEL_PORT=$WEBPANEL_PORT
 EOF
     chmod 600 "$WEBPANEL_ENV"
 
@@ -3205,7 +3411,7 @@ update_panel_self() {
     # khẩu/venv/chế độ truy cập đang có.
     if is_webpanel_installed; then
         echo ""
-        if confirm "  Web Dashboard đang cài - đồng bộ code mới nhất (giữ nguyên mật khẩu) luôn?"; then
+        if confirm "  Web Dashboard đang cài - đồng bộ code mới nhất luôn? (chỉ tải code + restart, KHÔNG đụng mật khẩu/cấu hình)"; then
             echo -e "${Y}  Đang tải code dashboard mới nhất...${N}"
             mkdir -p "$WEBPANEL_DIR/templates"
             local f ok=1

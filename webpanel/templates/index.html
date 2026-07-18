@@ -117,13 +117,15 @@
   .tbl th{text-align:left; color:var(--dim); font-weight:600; font-size:11px; letter-spacing:.05em; padding:8px 8px; border-bottom:1px solid var(--border);}
   .tbl td{padding:8px 8px; border-bottom:1px solid var(--border-soft); vertical-align:middle; color:var(--text);}
   .tbl tr:hover td{background:rgba(255,255,255,.02);}
-  .tbl .mini-input{width:64px; background:var(--void); border:1px solid var(--border); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px;}
-  .tbl .btn-mini{
+  .btn-mini{
     background:transparent; border:1px solid var(--border); color:var(--dim);
     font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 8px; cursor:pointer;
   }
-  .tbl .btn-mini:hover{border-color:var(--amber); color:var(--amber);}
-  .tbl .btn-mini.danger:hover{border-color:var(--red); color:var(--red);}
+  .btn-mini:hover{border-color:var(--amber); color:var(--amber);}
+  .btn-mini.danger:hover{border-color:var(--red); color:var(--red);}
+  .btn-mini:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-mini:disabled:hover{border-color:var(--border); color:var(--dim);}
+  .tbl .mini-input{width:64px; background:var(--void); border:1px solid var(--border); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px;}
   .tbl .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
   .authid-short{color:var(--dim-2); cursor:help;}
 
@@ -406,15 +408,20 @@
         </div>
 
         <h3 class="mono" style="font-size:12px; color:var(--dim); letter-spacing:.1em; margin:22px 0 10px;">DANH SÁCH ĐÃ CẤP</h3>
+        <p class="hint" style="margin:0 0 10px;">⚠ "Xoá" chỉ dọn khỏi sổ theo dõi (tokens.log/authorizations.json) - psiphonAuth xác thực bằng chữ ký khoá, server KHÔNG kiểm tra danh sách này lúc chạy, nên token đã cấp vẫn dùng được tới khi hết hạn dù đã xoá khỏi đây. Muốn thu hồi thật sự, chỉ có cách sinh lại signing keypair mới (vô hiệu hoá TẤT CẢ token).</p>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <button class="btn-mini danger" id="btnDeleteSelected" type="button" disabled>🗑 Xoá đã chọn (<span id="tokSelCount">0</span>)</button>
+        </div>
         <div style="overflow-x:auto;">
           <table class="tbl" id="tokenTable">
             <thead>
               <tr>
+                <th style="width:28px;"><input type="checkbox" id="tokSelectAll"></th>
                 <th>Ngày cấp</th><th>Ghi chú</th><th>Hạn</th><th>Thiết bị</th><th>AuthID</th><th>Thao tác</th>
               </tr>
             </thead>
             <tbody id="tokenTableBody">
-              <tr><td colspan="6" class="hint">Đang tải...</td></tr>
+              <tr><td colspan="7" class="hint">Đang tải...</td></tr>
             </tbody>
           </table>
         </div>
@@ -427,6 +434,20 @@
 
   <div class="tabpane" data-tab="advanced">
   <div class="grid">
+
+    <!-- Đổi port dashboard -->
+    <section class="card full">
+      <div class="hd"><h2>Port của Web Dashboard</h2></div>
+      <div class="bd">
+        <p class="hint" style="margin:0 0 14px;">Đây là port của CHÍNH trang web này (mặc định 8088) - khác với port của từng protocol psiphon (đổi ở tab Protocol). Đổi port xong, trang sẽ MẤT KẾT NỐI vài giây rồi tự chuyển sang địa chỉ mới.</p>
+        <div class="field" style="max-width:160px;">
+          <label>PORT MỚI</label>
+          <input type="text" id="webpanelPortInput" inputmode="numeric" placeholder="8088">
+        </div>
+        <button class="btn" id="btnSetWebpanelPort" type="button">Đổi port</button>
+        <div class="outbox empty" id="webpanelPortOut"></div>
+      </div>
+    </section>
 
     <!-- Config hiện tại -->
     <section class="card full">
@@ -560,8 +581,12 @@ async function refreshStatus(){
     if (!$('regionInput').dataset.touched){
       $('regionInput').value = s.region || '';
     }
+    if (!$('webpanelPortInput').dataset.touched){
+      $('webpanelPortInput').value = s.webpanel_port || '';
+    }
   }catch(e){ /* đã redirect nếu 401 */ }
 }
+$('webpanelPortInput').addEventListener('input', e => e.target.dataset.touched = '1');
 $('accessType').addEventListener('input', e => e.target.dataset.touched = '1');
 $('limitKbps').addEventListener('input', e => e.target.dataset.touched = '1');
 $('regionInput').addEventListener('input', e => { e.target.dataset.touched = '1'; e.target.value = e.target.value.toUpperCase(); });
@@ -601,6 +626,54 @@ $('importForm').addEventListener('submit', async (e) => {
     printOut($('importOut'), {ok:false, output:'Lỗi mạng: ' + err});
   }
   btn.disabled = false; btn.textContent = orig;
+});
+
+// ---------------- Đổi port Web Dashboard ----------------
+$('btnSetWebpanelPort').addEventListener('click', async () => {
+  const port = $('webpanelPortInput').value.trim();
+  if (!/^[0-9]+$/.test(port) || Number(port) < 1 || Number(port) > 65535){
+    printOut($('webpanelPortOut'), {ok:false, output:'Port không hợp lệ (cần 1-65535).'});
+    return;
+  }
+  if (!confirm(
+    `Đổi port dashboard sang ${port}?\n\n` +
+    `Trang sẽ MẤT KẾT NỐI vài giây trong lúc service restart, sau đó tự chuyển sang địa chỉ mới. Nếu quên địa chỉ mới, vào lại bằng SSH: systemctl status psiphon-dashboard hoặc xem /etc/psiphon-dashboard.env.`
+  )) return;
+
+  const btn = $('btnSetWebpanelPort');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Đang đổi...';
+  try{
+    const fd = new FormData(); fd.set('port', port);
+    const r = await postForm('/api/set-webpanel-port', fd);
+    if (r._unauthorized) return;
+    if (!r.ok){
+      printOut($('webpanelPortOut'), {ok:false, output: r.error || 'Đổi port thất bại.'});
+      btn.disabled = false; btn.textContent = orig;
+      return;
+    }
+    if (r.unchanged){
+      printOut($('webpanelPortOut'), {ok:true, output:'Port không đổi (đã là port hiện tại).'});
+      btn.disabled = false; btn.textContent = orig;
+      return;
+    }
+    const newHost = window.location.hostname;
+    const newUrl = `http://${newHost}:${r.new_port}/`;
+    let countdown = 5;
+    const tick = () => {
+      printOut($('webpanelPortOut'), {ok:true, output:
+        `OK: Đã đổi sang port ${r.new_port}. Service đang restart, tự chuyển sang ${newUrl} sau ${countdown}s...`});
+      if (countdown <= 0){
+        window.location.href = newUrl;
+        return;
+      }
+      countdown--;
+      setTimeout(tick, 1000);
+    };
+    tick();
+  }catch(err){
+    printOut($('webpanelPortOut'), {ok:false, output:'Lỗi mạng: ' + err});
+    btn.disabled = false; btn.textContent = orig;
+  }
 });
 
 // ---------------- Set Region ----------------
@@ -741,20 +814,22 @@ function fmtDevices(t){
 
 async function refreshTokens(){
   const tbody = $('tokenTableBody');
+  updateDeleteSelectedUi();
   try{
     const r = await callApi('/api/token/list');
     const tokens = r.tokens || [];
     if (!r.ok && tokens.length === 0){
-      tbody.innerHTML = `<tr><td colspan="6" class="hint">${esc(r.error || 'Không tải được danh sách token.')}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="hint">${esc(r.error || 'Không tải được danh sách token.')}</td></tr>`;
       return;
     }
     if (tokens.length === 0){
-      tbody.innerHTML = `<tr><td colspan="6" class="hint">Chưa cấp token nào.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="hint">Chưa cấp token nào.</td></tr>`;
       return;
     }
     tbody.innerHTML = tokens.map(t => {
       const shortId = (t.auth_id || '').slice(0, 10) + ((t.auth_id||'').length > 10 ? '…' : '');
       return `<tr data-auth-id="${esc(t.auth_id)}" data-token-array='${esc(t.token_array)}'>
+        <td><input type="checkbox" class="tok-select"></td>
         <td>${esc(t.date)}</td>
         <td>${esc(t.note)}</td>
         <td>${esc(t.days)}</td>
@@ -770,8 +845,10 @@ async function refreshTokens(){
         </td>
       </tr>`;
     }).join('');
+    $('tokSelectAll').checked = false;
+    updateDeleteSelectedUi();
   }catch(e){
-    tbody.innerHTML = `<tr><td colspan="6" class="hint">Lỗi mạng: ${esc(String(e))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="hint">Lỗi mạng: ${esc(String(e))}</td></tr>`;
   }
 }
 
@@ -895,6 +972,58 @@ $('tokenTableBody').addEventListener('click', async (e) => {
     btn.disabled = false;
     return;
   }
+});
+
+// Checkbox chọn dòng - dùng "change" riêng (không phải "click" ở trên) vì
+// click trên input checkbox cũng bubble lên nhưng ta chỉ cần cập nhật số
+// đếm/trạng thái nút xoá, không cần match closest('tr') phức tạp.
+$('tokenTableBody').addEventListener('change', (e) => {
+  if (e.target.classList.contains('tok-select')) updateDeleteSelectedUi();
+});
+
+$('tokSelectAll').addEventListener('change', (e) => {
+  document.querySelectorAll('#tokenTableBody .tok-select').forEach(cb => cb.checked = e.target.checked);
+  updateDeleteSelectedUi();
+});
+
+function updateDeleteSelectedUi(){
+  const boxes = document.querySelectorAll('#tokenTableBody .tok-select');
+  const checked = document.querySelectorAll('#tokenTableBody .tok-select:checked');
+  $('tokSelCount').textContent = String(checked.length);
+  $('btnDeleteSelected').disabled = checked.length === 0;
+  if (boxes.length > 0){
+    $('tokSelectAll').checked = checked.length === boxes.length;
+    $('tokSelectAll').indeterminate = checked.length > 0 && checked.length < boxes.length;
+  } else {
+    $('tokSelectAll').checked = false;
+    $('tokSelectAll').indeterminate = false;
+  }
+}
+
+$('btnDeleteSelected').addEventListener('click', async () => {
+  const checkedRows = Array.from(document.querySelectorAll('#tokenTableBody .tok-select:checked'))
+    .map(cb => cb.closest('tr[data-auth-id]'))
+    .filter(Boolean);
+  const authIds = checkedRows.map(tr => tr.dataset.authId);
+  if (authIds.length === 0) return;
+
+  if (!confirm(
+    `Xoá ${authIds.length} token khỏi sổ theo dõi?\n\n` +
+    `LƯU Ý: chỉ dọn khỏi danh sách (tokens.log/authorizations.json), KHÔNG thu hồi được token đã cấp - ai đã cầm token vẫn dùng được tới khi hết hạn tự nhiên (psiphonAuth xác thực bằng chữ ký khoá, không kiểm tra danh sách này).`
+  )) return;
+
+  const btn = $('btnDeleteSelected');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Đang xoá...';
+  try{
+    const fd = new FormData(); fd.set('auth_ids', JSON.stringify(authIds));
+    const r = await postForm('/api/token/delete', fd);
+    if (r._unauthorized) return;
+    printOut($('tokenActionOut'), r);
+    if (r.ok) refreshTokens();
+  }catch(err){
+    printOut($('tokenActionOut'), {ok:false, output:'Lỗi mạng: ' + err});
+  }
+  btn.disabled = false; btn.textContent = orig;
 });
 
 // ---------------- Tabs ----------------

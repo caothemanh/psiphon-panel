@@ -1,5 +1,54 @@
 # Changelog
 
+## Unreleased (15)
+- **Thêm đổi port cho CHÍNH Web Dashboard** (khác với port từng protocol
+  psiphon, vốn đã đổi được từ trước) - card mới "Port của Web Dashboard"
+  ở tab Nâng cao. Giải quyết đúng vấn đề port `8088` mặc định bị trùng với
+  dịch vụ khác trên VPS.
+  - Backend: `set_webpanel_port_core` - validate port, dò trước xem port
+    mới có đang bị tiến trình KHÁC (không phải gunicorn của chính
+    dashboard) chiếm không để báo lỗi sớm thay vì đổi xong mới fail-to-
+    bind, sửa `-b host:port` trong systemd service (giữ nguyên phần host
+    127.0.0.1/0.0.0.0, chỉ đổi số port), cập nhật lại rule UFW nếu đang ở
+    chế độ public, lưu `WEBPANEL_PORT` vào `/etc/psiphon-dashboard.env` để
+    các lần chạy panel sau đọc đúng port hiện tại (`load_config` đã có
+    sẵn logic đọc override này từ trước).
+  - Vì chính request đổi port đang được phục vụ bởi service SẮP bị
+    restart, lên lịch restart TRỄ 2 giây chạy nền (không đợi response) để
+    trình duyệt kịp nhận kết quả trước khi mất kết nối. Route mới
+    `/api/set-webpanel-port`.
+  - Frontend: xác nhận rõ trước khi đổi (nêu rõ sẽ mất kết nối tạm thời),
+    sau khi đổi thành công tự đếm ngược 5 giây rồi chuyển hướng trình
+    duyệt sang `http://<host>:<port_mới>/` - không cần tự gõ lại địa chỉ
+    tay.
+  - `web_status_json` trả thêm `webpanel_port` để hiển thị/prefill đúng
+    port hiện tại đang dùng.
+
+## Unreleased (14)
+- **Thêm checkbox chọn nhiều token + xoá hàng loạt** trong bảng "Quản lý
+  User (psiphonAuth Token)" trên web. Có checkbox từng dòng + "chọn tất
+  cả" ở header, nút "🗑 Xoá đã chọn (N)" hiện số lượng đang chọn.
+  - Backend: hàm mới `delete_auth_tokens_core` (nhận JSON array các
+    AuthorizationID) - xoá đúng dòng khớp khỏi `tokens.log`, khỏi mảng
+    `authorizations.json`, khỏi từng khối trong
+    `authorizations-blocks.json`, và dọn key tương ứng trong
+    `device-limits.json` nếu có. Route mới `/api/token/delete`.
+  - **Cảnh báo quan trọng đã ghi rõ trong UI lẫn code**: thao tác này CHỈ
+    dọn sổ theo dõi phía admin - psiphonAuth xác thực bằng chữ ký khoá
+    (SigningKeyID + Signature), psiphond KHÔNG đọc các file này lúc chạy
+    để kiểm tra token còn "tồn tại" hay không. Nghĩa là xoá ở đây KHÔNG
+    thu hồi được token đã cấp - ai đã cầm chuỗi token đó vẫn kết nối được
+    bình thường tới khi hết hạn tự nhiên. Muốn thu hồi thật sự, cách duy
+    nhất là sinh lại signing keypair mới (vô hiệu hoá TOÀN BỘ token cũ,
+    không chọn lọc được từng cái).
+
+## Unreleased (13)
+- Sửa câu hỏi ở menu `[8]` gây hiểu lầm: *"đồng bộ code mới nhất (giữ
+  nguyên mật khẩu) luôn?"* dễ đọc thành "bấm y thì sẽ được hỏi đặt lại mật
+  khẩu (nhưng giữ nguyên nếu muốn)". Thực ra nhánh này KHÔNG có bước hỏi
+  mật khẩu nào cả - chỉ tải code + restart. Đổi câu chữ rõ ràng hơn: *"chỉ
+  tải code + restart, KHÔNG đụng mật khẩu/cấu hình"*.
+
 ## Unreleased (12)
 - **Sửa copy token/server entry không hoạt động trên di động.** Dashboard
   chạy `http://` thuần (không TLS) trên IP thật - `navigator.clipboard`

@@ -231,6 +231,24 @@ def api_import_key():
 
 
 # ----------------------------------------------------------------------
+# API: đổi port CHÍNH dashboard đang lắng nghe
+# ----------------------------------------------------------------------
+@app.route("/api/set-webpanel-port", methods=["POST"])
+@login_required
+def api_set_webpanel_port():
+    port = (request.form.get("port") or "").strip()
+    if not port.isdigit():
+        return jsonify({"ok": False, "error": "Port phải là số nguyên."}), 400
+    r = run_panel_func("set_webpanel_port_core", port, timeout=20)
+    if not r["ok"]:
+        return jsonify({"ok": False, "error": r["output"] or "Đổi port thất bại."}), 500
+    try:
+        return jsonify(json.loads(r["output"]))
+    except json.JSONDecodeError:
+        return jsonify({"ok": False, "error": r["output"] or "Phản hồi không phải JSON hợp lệ."}), 500
+
+
+# ----------------------------------------------------------------------
 # API: đặt Region (bắt buộc trước khi generate)
 # ----------------------------------------------------------------------
 @app.route("/api/set-region", methods=["POST"])
@@ -367,6 +385,24 @@ def api_token_set_devices():
     if not devices.isdigit():
         return jsonify({"ok": False, "output": "Số thiết bị phải là số nguyên >= 0."}), 400
     r = run_panel_func("set_device_limit_core", auth_id, devices, timeout=20)
+    return jsonify(r)
+
+
+# ----------------------------------------------------------------------
+# API: xoá hàng loạt token khỏi sổ theo dõi (KHÔNG thu hồi - xem comment
+# trong delete_auth_tokens_core)
+# ----------------------------------------------------------------------
+@app.route("/api/token/delete", methods=["POST"])
+@login_required
+def api_token_delete():
+    auth_ids_json = request.form.get("auth_ids") or ""
+    try:
+        ids = json.loads(auth_ids_json)
+        if not isinstance(ids, list) or not ids:
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        return jsonify({"ok": False, "output": "Danh sách token cần xoá không hợp lệ."}), 400
+    r = run_panel_func("delete_auth_tokens_core", json.dumps(ids), timeout=20)
     return jsonify(r)
 
 

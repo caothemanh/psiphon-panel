@@ -129,6 +129,30 @@
   .tbl .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
   .authid-short{color:var(--dim-2); cursor:help;}
 
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-box{
+    background:var(--panel); border:1px solid var(--border); max-width:480px; width:100%;
+    box-shadow:0 12px 40px rgba(0,0,0,.5);
+  }
+  .modal-hd{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid var(--border);
+  }
+  .modal-hd h3{margin:0; font-size:15px; color:var(--text); font-family:'IBM Plex Mono',monospace;}
+  .modal-close{
+    background:transparent; border:none; color:var(--dim); font-size:16px; cursor:pointer; padding:4px 8px;
+  }
+  .modal-close:hover{color:var(--red);}
+  .modal-bd{padding:18px;}
+  .modal-bd textarea{
+    width:100%; background:var(--void); border:1px solid var(--border); color:var(--text);
+    font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px; resize:vertical;
+  }
+
   /* ---------- Form ---------- */
   .field{margin-bottom:14px;}
   .field label{display:block; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--dim); margin-bottom:6px; letter-spacing:.05em;}
@@ -487,6 +511,23 @@
   </div>
   </div> <!-- /tabpane advanced -->
 </main>
+
+<!-- Modal xem/copy token -->
+<div id="tokenModalOverlay" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-hd">
+      <h3>Token</h3>
+      <button class="modal-close" id="btnCloseTokenModal" type="button">✕</button>
+    </div>
+    <div class="modal-bd">
+      <p class="hint" style="margin:0 0 10px;">Dán thẳng vào "authorizations" của config client:</p>
+      <textarea id="tokenModalValue" readonly rows="4"></textarea>
+      <button class="btn primary" id="btnCopyTokenModal" type="button" style="margin-top:10px;">📋 Copy</button>
+      <div class="outbox empty" id="tokenModalOut" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</div>
+
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -972,6 +1013,29 @@ $('tokenTableBody').addEventListener('click', async (e) => {
     btn.disabled = false;
     return;
   }
+
+  // Bấm vào bất kỳ đâu khác trên dòng (không phải input/checkbox/nút thao
+  // tác) - mở dialog xem token đầy đủ + nút copy.
+  if (e.target.closest('input, button, .row-actions')) return;
+  openTokenModal(tr.dataset.tokenArray);
+});
+
+function openTokenModal(tokenArray){
+  $('tokenModalValue').value = tokenArray;
+  $('tokenModalOut').classList.add('empty');
+  $('tokenModalOut').innerHTML = '';
+  $('tokenModalOverlay').style.display = 'flex';
+}
+function closeTokenModal(){
+  $('tokenModalOverlay').style.display = 'none';
+}
+$('btnCloseTokenModal').addEventListener('click', closeTokenModal);
+$('tokenModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'tokenModalOverlay') closeTokenModal();
+});
+$('btnCopyTokenModal').addEventListener('click', async () => {
+  const ok = await copyToClipboard($('tokenModalValue').value, $('btnCopyTokenModal'));
+  printOut($('tokenModalOut'), {ok, output: ok ? 'Đã copy.' : 'Copy tự động thất bại - bấm giữ vào ô trên để copy tay.'});
 });
 
 // Checkbox chọn dòng - dùng "change" riêng (không phải "click" ở trên) vì

@@ -123,10 +123,10 @@ fi
 
 if [[ "$reset_pw" =~ ^[Yy]$ ]]; then
     while true; do
-        read -rs -p "  Nhập mật khẩu mới cho dashboard: " PW1 < /dev/tty; echo
-        read -rs -p "  Nhập lại: " PW2 < /dev/tty; echo
+        read -r -p "  Nhập mật khẩu mới cho dashboard: " PW1 < /dev/tty; echo
+        read -r -p "  Nhập lại: " PW2 < /dev/tty; echo
+        [ -n "$PW1" ] || { echo -e "${R}  Mật khẩu không được để trống.${N}"; continue; }
         [ "$PW1" = "$PW2" ] || { echo -e "${R}  Không khớp, thử lại.${N}"; continue; }
-        [ ${#PW1} -ge 8 ] || { echo -e "${R}  Mật khẩu nên >= 8 ký tự.${N}"; continue; }
         break
     done
     PW_HASH=$(python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())" "$PW1")

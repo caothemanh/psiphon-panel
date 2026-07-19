@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased (18)
+- **Bỏ yêu cầu mật khẩu dashboard phải >= 8 ký tự** ở cả 3 nơi:
+  `install_web_dashboard()` (menu CLI `[7]`), `change_webpanel_password()`
+  (đổi mật khẩu), và `install.sh` - giờ chỉ cần không để trống + 2 lần
+  nhập khớp nhau.
+- **Không ẩn mật khẩu khi gõ nữa** - đổi `read -rs` (ẩn ký tự) thành
+  `read -r` (hiện rõ) ở cả 3 nơi trên, và `set_password.py` đổi từ
+  `getpass.getpass()` sang `input()` thường.
+- **Thêm dialog xem token khi bấm vào 1 dòng trong bảng "DANH SÁCH ĐÃ
+  CẤP"** (tab psiphonAuth & User). Bấm vào bất kỳ đâu trên dòng (trừ ô
+  checkbox/input/nút thao tác) sẽ mở modal hiển thị token dạng mảng JSON
+  (`["ey..."]`, đúng định dạng dán vào config client) kèm nút "📋 Copy" -
+  dùng chung `copyToClipboard()` đã có, không cần thêm code copy riêng.
+
 ## Unreleased (17)
 - **Thêm hỗ trợ máy chạy sau NAT/router (VD board tại nhà như Armbian).**
   `default_config()` tự dò `SERVER_IP` qua `curl ifconfig.me` - luôn trả

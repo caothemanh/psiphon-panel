@@ -105,6 +105,16 @@ C='\033[1;36m' W='\033[1;37m' N='\033[0m' BOLD='\033[1m'
 # ================================================================
 default_config() {
     SERVER_IP=$(curl -s4 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+    # BIND_IP: IP thật để psiphond LẮNG NGHE (bind), khác với SERVER_IP là
+    # IP quảng bá cho client trong server-entry. Với VPS thường (IP public
+    # gán thẳng vào interface), 2 giá trị này giống nhau -> để trống, panel
+    # tự dùng SERVER_IP cho cả 2 việc như trước giờ, KHÔNG đổi hành vi cũ.
+    # Chỉ cần đặt khi máy chạy SAU NAT/router (VD board tại nhà như
+    # Armbian) - lúc đó SERVER_IP vẫn để là IP public/WAN (để client biết
+    # địa chỉ kết nối từ ngoài), còn BIND_IP đặt = IP LAN thật của máy
+    # (VD 192.168.1.x) để psiphond bind thành công. Cần tự cấu hình thêm
+    # port forwarding trên router từ IP WAN vào IP LAN này.
+    BIND_IP=""
     WEB_PORT=3000
     CF_DOMAIN=""
     CF_IP=""
@@ -217,6 +227,7 @@ save_config() {
     mkdir -p "$PANEL_DIR"
     {
         echo "SERVER_IP=\"$SERVER_IP\""
+        echo "BIND_IP=\"$BIND_IP\""
         echo "WEB_PORT=$WEB_PORT"
         echo "CF_DOMAIN=\"$(echo $CF_DOMAIN | tr -d '[:space:]')\""
         echo "CF_IP=\"$(echo $CF_IP | tr -d '[:space:]')\""
@@ -259,6 +270,7 @@ web_status_json() {
     WS_ACCESS_TYPE="$AUTH_ACCESS_TYPE" \
     WS_LIMIT_KBPS="$DEFAULT_LIMIT_KBPS" \
     WS_REGION="$REGION" \
+    WS_BIND_IP="$BIND_IP" \
     WS_WEBPANEL_PORT="$WEBPANEL_PORT" \
     WS_HAS_SIGNING_KEY="$([ -f "$SIGNING_KEY_FILE" ] && echo true || echo false)" \
     WS_HAS_VERIFY_KEY="$([ -f "$VERIFY_KEY_FILE" ] && echo true || echo false)" \
@@ -285,6 +297,7 @@ print(json.dumps({
     'access_type': os.environ['WS_ACCESS_TYPE'],
     'default_limit_kbps': os.environ['WS_LIMIT_KBPS'],
     'region': os.environ['WS_REGION'],
+    'bind_ip': os.environ['WS_BIND_IP'],
     'webpanel_port': os.environ['WS_WEBPANEL_PORT'],
     'has_signing_key': os.environ['WS_HAS_SIGNING_KEY'] == 'true',
     'has_verify_key': os.environ['WS_HAS_VERIFY_KEY'] == 'true',
@@ -330,8 +343,15 @@ header() {
 create_patch_script() {
     cat > "$PATCH_SCRIPT" << 'PYEOF'
 #!/usr/bin/env python3
-# Công cụ chỉ để XEM nội dung server-entry.dat (không sửa gì cả).
-# Entry được dùng nguyên bản như psiphond đã generate ra.
+# Công cụ xem/sửa server-entry.dat.
+# "show"/"hex": chỉ xem, không sửa gì.
+# "set-ip": dùng cho máy sau NAT (VD board tại nhà) - psiphond generate
+# entry với BIND_IP (IP LAN thật để bind), sau đó lệnh này ghi đè lại
+# ipAddress/meekFrontingAddresses/meekFrontingHosts trong ENTRY (không
+# đụng tới psiphond.config) thành IP công khai thật (SERVER_IP) mà client
+# ở ngoài cần dùng để kết nối. Vì server-entry không có chữ ký toàn vẹn
+# bảo vệ nội dung (khác psiphonAuth token), sửa JSON rồi mã hex lại là an
+# toàn, không làm hỏng entry.
 import sys, json
 
 def decode(path):
@@ -351,11 +371,26 @@ def show(path):
         if v is not None:
             print(f"{k}: {v}")
 
+def set_ip(in_path, out_path, new_ip):
+    prefix, obj = decode(in_path)
+    old_ip = obj.get('ipAddress')
+    obj['ipAddress'] = new_ip
+    if isinstance(obj.get('meekFrontingAddresses'), list):
+        obj['meekFrontingAddresses'] = [new_ip for _ in obj['meekFrontingAddresses']]
+    if isinstance(obj.get('meekFrontingHosts'), list):
+        obj['meekFrontingHosts'] = [new_ip for _ in obj['meekFrontingHosts']]
+    new_content = (prefix + json.dumps(obj)).encode('utf-8')
+    with open(out_path, 'w') as f:
+        f.write(new_content.hex())
+    print(f"OK: Đã đổi IP quảng bá trong entry {old_ip} -> {new_ip}")
+
 cmd = sys.argv[1]
 if cmd == 'show':
     show(sys.argv[2])
 elif cmd == 'hex':
     print(open(sys.argv[2]).read().strip())
+elif cmd == 'set-ip':
+    set_ip(sys.argv[2], sys.argv[3], sys.argv[4])
 PYEOF
     chmod +x "$PATCH_SCRIPT"
 }
@@ -1725,6 +1760,7 @@ menu_config() {
         echo -e "  ${Y}⇄ = không có listener riêng (port chỉ để gắn capability), yêu cầu${N}"
         echo -e "  ${Y}   $SHARED_MEEK_PORT_PARENT phải đang BẬT thì mới BẬT được — port tự chọn riêng.${N}"
         echo -e "  ${W}[I]${N} Sửa IP Server    ${W}[W]${N} Sửa Web Port    ${W}[R]${N} Sửa Region"
+        echo -e "  ${W}[B]${N} Bind IP (chỉ cần nếu máy sau NAT/router - VD board tại nhà)${N}: ${G}${BIND_IP:-"(giống IP Server)"}${N}"
         echo -e "  ${W}[C]${N} Cấu hình Cloudflare Fronting"
         echo -e "  ${W}[T]${N} Chứng chỉ TLS gốc (Cloudflare Origin CA) cho FRONTED-WSS/MEEK"
         echo -e "  ${W}[số]${N} Bật/Tắt protocol & sửa port"
@@ -1743,6 +1779,20 @@ menu_config() {
                 echo -ne "  ${Y}Web Port [$WEB_PORT]: ${N}"
                 read -r inp; [ -n "$inp" ] && WEB_PORT="$inp"
                 save_config ;;
+            B)
+                echo -e "  ${Y}IP LAN thật của máy này để psiphond bind (VD 192.168.1.x).${N}"
+                echo -e "  ${Y}Để trống + Enter = xoá, dùng lại IP Server cho cả bind lẫn quảng bá.${N}"
+                echo -ne "  ${Y}Bind IP [${BIND_IP:-"(giống IP Server)"}], gõ '-' để xoá: ${N}"
+                read -r inp
+                if [ "$inp" = "-" ]; then
+                    BIND_IP=""
+                    echo -e "${G}  ✓ Đã xoá Bind IP - dùng lại IP Server ($SERVER_IP) cho cả bind${N}"
+                elif [ -n "$inp" ]; then
+                    BIND_IP="$inp"
+                    echo -e "${G}  ✓ Bind IP: $BIND_IP (quảng bá vẫn dùng IP Server: $SERVER_IP)${N}"
+                    echo -e "${Y}  ⚠ Nhớ cấu hình port forwarding trên router: WAN $SERVER_IP → LAN $BIND_IP${N}"
+                fi
+                save_config; sleep 2 ;;
             R)
                 echo -ne "  ${Y}Region (VD: VN, JP, US) [$REGION]: ${N}"
                 read -r inp; [ -n "$inp" ] && REGION="${inp^^}"
@@ -2399,6 +2449,9 @@ do_generate() {
         echo ""
     fi
     echo -e "  IP     : ${G}$SERVER_IP${N}"
+    if [ -n "$BIND_IP" ] && [ "$BIND_IP" != "$SERVER_IP" ]; then
+        echo -e "  Bind IP: ${Y}$BIND_IP${N} ${Y}(sau NAT - psiphond bind IP này, entry vẫn quảng bá $SERVER_IP)${N}"
+    fi
     echo -e "  Web    : ${G}$WEB_PORT${N}"
     echo -e "  Region : ${G}$REGION${N}"
     echo ""
@@ -2459,7 +2512,12 @@ do_generate_core() {
     cd "$INSTALL_DIR" || { echo "ERR: Không cd được vào $INSTALL_DIR"; return 1; }
     local region_arg=""
     [ -n "$REGION" ] && region_arg="--region $REGION"
-    eval "$BINARY --ipaddress $SERVER_IP --web $WEB_PORT $region_arg $proto_args generate" >/tmp/psiphon-generate.log 2>&1
+    # BIND_IP (nếu có, cho máy sau NAT) là IP thật để psiphond LẮNG NGHE.
+    # psiphond chỉ nhận 1 IP cho cả bind lẫn ghi vào entry, nên generate
+    # bằng BIND_IP trước, rồi vá lại entry để quảng bá đúng SERVER_IP cho
+    # client (xem set_ip trong patch_entry.py).
+    local effective_bind_ip="${BIND_IP:-$SERVER_IP}"
+    eval "$BINARY --ipaddress $effective_bind_ip --web $WEB_PORT $region_arg $proto_args generate" >/tmp/psiphon-generate.log 2>&1
 
     if [ ! -f "$ENTRY_RAW" ]; then
         echo "ERR: Generate thất bại"
@@ -2468,8 +2526,12 @@ do_generate_core() {
     fi
     echo "OK: Generate xong"
 
-    cp "$ENTRY_RAW" "$ENTRY_PATCHED"
-    cp "$ENTRY_RAW" "/root/server-entry.dat"
+    if [ -n "$BIND_IP" ] && [ "$BIND_IP" != "$SERVER_IP" ]; then
+        python3 "$PATCH_SCRIPT" set-ip "$ENTRY_RAW" "$ENTRY_PATCHED" "$SERVER_IP"
+    else
+        cp "$ENTRY_RAW" "$ENTRY_PATCHED"
+    fi
+    cp "$ENTRY_PATCHED" "/root/server-entry.dat"
 
     write_traffic_rules
     inject_server_config

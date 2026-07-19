@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased (17)
+- **Thêm hỗ trợ máy chạy sau NAT/router (VD board tại nhà như Armbian).**
+  `default_config()` tự dò `SERVER_IP` qua `curl ifconfig.me` - luôn trả
+  về IP public/WAN, kể cả khi máy chạy trong mạng NAT. psiphond thì lại
+  BIND thẳng vào đúng giá trị `ServerIPAddress` được truyền lúc generate
+  (không tự bind `0.0.0.0`) - nếu máy không có IP đó trên bất kỳ network
+  interface nào, lắng nghe sẽ fail với lỗi khó hiểu
+  `bind: cannot assign requested address`, server không tự chạy được sau
+  generate.
+  - Thêm biến `BIND_IP` (mặc định rỗng, KHÔNG đổi hành vi cũ cho VPS
+    thường có IP public gán thẳng vào interface). Khi đặt (menu `[2] > [B]`),
+    generate sẽ dùng `BIND_IP` cho `--ipaddress` (để psiphond bind đúng
+    IP LAN thật), rồi vá lại server-entry để vẫn quảng bá đúng `SERVER_IP`
+    (IP WAN) cho client - đúng model NAT: client nối vào IP WAN, router
+    forward vào IP LAN.
+  - `patch_entry.py` (đã có sẵn, trước chỉ dùng để xem) thêm subcommand
+    `set-ip`: ghi đè `ipAddress`/`meekFrontingAddresses`/
+    `meekFrontingHosts` trong entry, giữ nguyên phần còn lại - đã kiểm
+    chứng round-trip đúng (decode → sửa → encode → decode lại khớp 100%).
+  - Nhắc rõ trong UI: cần tự cấu hình thêm port forwarding trên router
+    (WAN `SERVER_IP` → LAN `BIND_IP`) - panel không tự làm được việc này
+    vì nằm ngoài phạm vi máy chủ.
+
 ## Unreleased (16)
 - **Panel tự dò kiến trúc CPU để tải đúng binary `psiphond`/`psiphon-
   authgen`.** Trước đây chỉ có 1 tên file cố định (`psiphond`,

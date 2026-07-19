@@ -3428,6 +3428,45 @@ change_webpanel_password() {
     press_enter
 }
 
+# Đổi port dashboard qua menu CLI - tái dùng ĐÚNG logic đã kiểm chứng ở
+# set_webpanel_port_core() (dò port trùng, sửa systemd service + env,
+# tự mở UFW nếu đang bind 0.0.0.0, restart nền trễ 2s) thay vì viết lại.
+change_webpanel_port() {
+    header
+    echo -e "${W}${BOLD}  ĐỔI PORT WEB DASHBOARD${N}"
+    echo -e "${C}  ─────────────────────────────────────────────────${N}"
+    echo ""
+    if ! is_webpanel_installed; then
+        echo -e "${R}  Chưa cài Web Dashboard.${N}"
+        press_enter; return
+    fi
+    echo -e "  Port hiện tại: ${G}$WEBPANEL_PORT${N}"
+    echo -ne "  ${Y}Port mới (1-65535, Enter để hủy): ${N}"
+    read -r new_port
+    [ -z "$new_port" ] && return
+
+    local result ok err unchanged
+    result=$(set_webpanel_port_core "$new_port")
+    ok=$(echo "$result" | python3 -c "import json,sys; print('1' if json.load(sys.stdin).get('ok') else '0')" 2>/dev/null)
+
+    if [ "$ok" = "1" ]; then
+        unchanged=$(echo "$result" | python3 -c "import json,sys; print('1' if json.load(sys.stdin).get('unchanged') else '0')" 2>/dev/null)
+        load_config
+        if [ "$unchanged" = "1" ]; then
+            echo -e "${Y}  Port mới giống port hiện tại (${WEBPANEL_PORT}), không có gì thay đổi.${N}"
+        else
+            echo -e "${G}  ✓ Đã đổi port dashboard sang ${WEBPANEL_PORT}.${N}"
+            echo -e "${Y}  Dashboard đang tự restart nền (2 giây) để áp dụng port mới...${N}"
+            sleep 2
+            print_webpanel_access_info
+        fi
+    else
+        err=$(echo "$result" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error',''))" 2>/dev/null)
+        echo -e "${R}  ✗ Đổi port thất bại: ${err:-lỗi không xác định}${N}"
+    fi
+    press_enter
+}
+
 uninstall_web_dashboard() {
     header
     confirm "  Gỡ hoàn toàn Web Dashboard (giữ nguyên psiphond)?" || return
@@ -3452,6 +3491,7 @@ menu_web_dashboard() {
             echo -e "  ${W}[2]${N} Đổi mật khẩu"
             echo -e "  ${W}[3]${N} Restart dashboard"
             echo -e "  ${W}[4]${N} Xem log dashboard"
+            echo -e "  ${W}[5]${N} Đổi port dashboard (hiện tại: ${G}${WEBPANEL_PORT}${N})"
             echo -e "  ${W}[9]${N} Gỡ dashboard"
         else
             echo -e "  ${Y}Chưa cài. Dashboard cho phép điều khiển server qua trình duyệt${N}"
@@ -3468,6 +3508,7 @@ menu_web_dashboard() {
             2) is_webpanel_installed && change_webpanel_password || press_enter ;;
             3) is_webpanel_installed && { systemctl restart psiphon-dashboard; echo -e "${G}  ✓ Đã restart${N}"; press_enter; } || press_enter ;;
             4) is_webpanel_installed && { journalctl -u psiphon-dashboard -n 50 --no-pager; press_enter; } || press_enter ;;
+            5) is_webpanel_installed && change_webpanel_port || press_enter ;;
             9) is_webpanel_installed && uninstall_web_dashboard || press_enter ;;
             0) return ;;
         esac

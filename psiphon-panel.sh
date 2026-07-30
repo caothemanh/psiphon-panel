@@ -556,9 +556,9 @@ ensure_authgen() {
         else
             echo -e "${R}  Chưa có psiphon-authgen tại $AUTHGEN_BINARY${N}"
         fi
-        echo -e "${Y}  Tool này phải tự build từ package accesscontrol trong${N}"
-        echo -e "${Y}  chính repo psiphon-tunnel-core bạn dùng để build psiphond custom.${N}"
-        echo -e "${Y}  Build xong, copy binary vào: $AUTHGEN_BINARY${N}"
+        echo -e "${Y} Tool này phải tự build từ package accesscontrol trong${N}"
+        echo -e "${Y} chính repo psiphon-tunnel-core bạn dùng để build psiphond custom.${N}"
+        echo -e "${Y} Build xong, copy binary vào: $AUTHGEN_BINARY${N}"
         return 1
     fi
 
@@ -617,9 +617,9 @@ import_verification_key() {
     echo -e "${C}  ─────────────────────────────────────────────────${N}"
     echo ""
     if [ -f "$VERIFY_KEY_FILE" ]; then
-        echo -e "${Y}  ⚠ VPS này đã có verification key riêng. Import sẽ GHI ĐÈ -${N}"
-        echo -e "${Y}    token đã cấp bằng signing key CŨ của VPS này sẽ không${N}"
-        echo -e "${Y}    còn verify được nữa (nếu key cũ khác key sắp import).${N}"
+        echo -e "${Y} ⚠ VPS này đã có verification key riêng. Import sẽ GHI ĐÈ -${N}"
+        echo -e "${Y}   token đã cấp bằng signing key CŨ của VPS này sẽ không${N}"
+        echo -e "${Y}   còn verify được nữa (nếu key cũ khác key sắp import).${N}"
         confirm "  Vẫn tiếp tục?" || { press_enter; return; }
     fi
 
@@ -628,9 +628,9 @@ import_verification_key() {
     local src="$BROWSE_RESULT"
 
     echo ""
-    echo -e "${Y}  QUAN TRỌNG: AccessType phải khớp CHÍNH XÁC với AccessType đã${N}"
-    echo -e "${Y}  dùng lúc sinh keypair (gen-keys) ở VPS GỐC, nếu không client sẽ${N}"
-    echo -e "${Y}  KHÔNG BAO GIỜ được unlimit dù token hợp lệ.${N}"
+    echo -e "${Y} QUAN TRỌNG: AccessType phải khớp CHÍNH XÁC với AccessType đã${N}"
+    echo -e "${Y} dùng lúc sinh keypair (gen-keys) ở VPS GỐC, nếu không client sẽ${N}"
+    echo -e "${Y} KHÔNG BAO GIỜ được unlimit dù token hợp lệ.${N}"
     echo -e "  AccessType hiện tại trên VPS này: ${G}$AUTH_ACCESS_TYPE${N}"
     echo -ne "  ${Y}Nhập AccessType của VPS gốc (Enter để giữ nguyên \"$AUTH_ACCESS_TYPE\"): ${N}"
     read -r new_access_type
@@ -889,7 +889,7 @@ with open(sys.argv[1], 'a') as f:
     echo -e "  ${Y}→ Đã gộp token này vào: ${G}${AUTH_ARRAY_FILE}${N}"
     echo -e "  ${Y}→ Đã append khối riêng vào: ${G}${AUTH_BLOCKS_FILE}${N}"
     echo ""
-    echo -e "  ${Y}Giới hạn thiết bị: ${G}${devices}${N}${Y} (0 = không giới hạn), AuthID: $authid${N}"
+    echo -e "  ${Y}Giới hạn thiết bị: ${G}${devices}${N}${Y}(0 = không giới hạn), AuthID: $authid${N}"
     press_enter
 }
 
@@ -1231,7 +1231,7 @@ kick_authorization() {
     fi
 
     echo ""
-    echo -e "${Y}  Dán AuthorizationID cần kick (xem ở menu [4] - cột AuthID):${N}"
+    echo -e "${Y} Dán AuthorizationID cần kick (xem ở menu [4] - cột AuthID):${N}"
     echo -ne "  ${Y}AuthorizationID: ${N}"
     read -r auth_id
     if [ -z "$auth_id" ]; then
@@ -1267,14 +1267,14 @@ with open('$KICK_REQUESTS_FILE', 'w') as f:
 list_auth_tokens() {
     echo ""
     if [ ! -f "$TOKENS_LOG" ]; then
-        echo -e "${Y}  Chưa cấp token nào.${N}"
+        echo -e "${Y} Chưa cấp token nào.${N}"
     else
         echo -e "${W}  Ngày cấp             | Ghi chú          | Hạn  | Token (chuỗi thuần)${N}"
         echo -e "${C}  ─────────────────────────────────────────────────────${N}"
         cat "$TOKENS_LOG"
         echo ""
-        echo -e "${Y}  → Dán thẳng vào \"Authorizations\" của config client: dùng${N}"
-        echo -e "${Y}    dạng [\"<token>\"] (mảng JSON), kể cả khi chỉ 1 token.${N}"
+        echo -e "${Y} → Dán thẳng vào \"Authorizations\" của config client: dùng${N}"
+        echo -e "${Y}   dạng [\"<token>\"] (mảng JSON), kể cả khi chỉ 1 token.${N}"
     fi
     press_enter
 }
@@ -1453,17 +1453,17 @@ menu_limit_auth() {
             echo -e "  Signing key       : ${R}✗ chưa sinh${N}"
         fi
         echo ""
-        echo -e "  ${W}[1]${N} Đặt/sửa giới hạn mặc định (KB/s, 0 = tắt)"
-        echo -e "  ${W}[2]${N} Sinh cặp khóa ký (bắt buộc trước khi cấp token)"
-        echo -e "  ${W}[3]${N} Cấp psiphonAuth token mới cho 1 user"
-        echo -e "  ${W}[4]${N} Xem danh sách token đã cấp"
-        echo -e "  ${W}[5]${N} Sửa AccessType (nhãn token)"
-        echo -e "  ${W}[6]${N} Sửa số thiết bị của 1 token đã cấp"
-        echo -e "  ${W}[7]${N} Kick thiết bị đang giữ 1 token (khẩn cấp - nghi lộ token)"
+        echo -e "  ${C}[1]${N} ${Y}ĐẶT/SỬA GIỚI HẠN MẶC ĐỊNH (KB/S, 0 = TẮT)${N}"
+        echo -e "  ${C}[2]${N} ${Y}SINH CẶP KHÓA KÝ (BẮT BUỘC TRƯỚC KHI CẤP TOKEN)${N}"
+        echo -e "  ${C}[3]${N} ${Y}CẤP PSIPHONAUTH TOKEN MỚI CHO 1 USER${N}"
+        echo -e "  ${C}[4]${N} ${Y}XEM DANH SÁCH TOKEN ĐÃ CẤP${N}"
+        echo -e "  ${C}[5]${N} ${Y}SỬA ACCESSTYPE (NHÃN TOKEN)${N}"
+        echo -e "  ${C}[6]${N} ${Y}SỬA SỐ THIẾT BỊ CỦA 1 TOKEN ĐÃ CẤP${N}"
+        echo -e "  ${C}[7]${N} ${Y}KICK THIẾT BỊ ĐANG GIỮ 1 TOKEN (KHẨN CẤP - NGHI LỘ TOKEN)${N}"
         echo -e "${C}  ─────────────────────────────────────────────────${N}"
-        echo -e "  ${W}[8]${N} Export verification key (dùng chung psiphonAuth cho nhiều VPS)"
-        echo -e "  ${W}[9]${N} Import verification key từ VPS khác (thay vì tự sinh key riêng)"
-        echo -e "  ${W}[0]${N} Quay lại"
+        echo -e "  ${C}[8]${N} ${Y}EXPORT VERIFICATION KEY (DÙNG CHUNG PSIPHONAUTH CHO NHIỀU VPS)${N}"
+        echo -e "  ${C}[9]${N} ${Y}IMPORT VERIFICATION KEY TỪ VPS KHÁC (THAY VÌ TỰ SINH KEY RIÊNG)${N}"
+        echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
         echo ""
         echo -ne "  ${Y}Chọn: ${N}"
         read -r c
@@ -1487,9 +1487,9 @@ menu_limit_auth() {
                 echo -ne "  ${Y}AccessType mới [$AUTH_ACCESS_TYPE]: ${N}"
                 read -r inp
                 if [ -n "$inp" ]; then
-                    echo -e "${Y}  ⚠ Đổi AccessType KHÔNG đổi key hiện có -${N}"
-                    echo -e "${Y}    token đã cấp trước đó dùng AccessType cũ vẫn hợp lệ,${N}"
-                    echo -e "${Y}    nhưng traffic-rules.json sẽ chỉ khớp AccessType mới.${N}"
+                    echo -e "${Y} ⚠ Đổi AccessType KHÔNG đổi key hiện có -${N}"
+                    echo -e "${Y}   token đã cấp trước đó dùng AccessType cũ vẫn hợp lệ,${N}"
+                    echo -e "${Y}   nhưng traffic-rules.json sẽ chỉ khớp AccessType mới.${N}"
                     confirm "  Tiếp tục?" && {
                         AUTH_ACCESS_TYPE="$inp"
                         save_config
@@ -1625,17 +1625,17 @@ menu_install() {
     echo ""
 
     if is_installed; then
-        echo -e "${Y}  Psiphon đã được cài đặt.${N}"
+        echo -e "${Y} Psiphon đã được cài đặt.${N}"
         confirm "  Cài đặt lại từ đầu?" || return
         systemctl stop psiphond 2>/dev/null
     fi
 
-    echo -e "${Y}  [1/7] Cài đặt dependencies...${N}"
+    echo -e "${Y} [1/7] Cài đặt dependencies...${N}"
     apt-get update -qq
     apt-get install -y -qq curl wget python3 dnsutils >/dev/null 2>&1
     echo -e "${G}  ✓ OK${N}"
 
-    echo -e "${Y}  [2/7] Tải psiphond...${N}"
+    echo -e "${Y} [2/7] Tải psiphond...${N}"
     if [ -z "$BINARY_ARCH" ]; then
         echo -e "${R}  Kiến trúc CPU '$(uname -m)' chưa có binary dựng sẵn (chỉ có amd64/arm64).${N}"
         echo -e "${R}  Cần tự build psiphond cho kiến trúc này rồi copy tay vào: $INSTALL_DIR/${N}"
@@ -1653,7 +1653,7 @@ menu_install() {
             fi
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$url")
             if [ "$HTTP_CODE" = "429" ]; then
-                echo -e "${Y}    Bị rate-limit (429), đợi 10s rồi thử lại (lần $attempt/3)...${N}"
+                echo -e "${Y}   Bị rate-limit (429), đợi 10s rồi thử lại (lần $attempt/3)...${N}"
                 rm -f "$BINARY.tmp"
                 sleep 10
             else
@@ -1675,19 +1675,19 @@ menu_install() {
         press_enter; return
     fi
 
-    echo -e "${Y}  [3/7] Tải psiphon-authgen (dùng cho psiphonAuth / giới hạn băng thông)...${N}"
+    echo -e "${Y} [3/7] Tải psiphon-authgen (dùng cho psiphonAuth / giới hạn băng thông)...${N}"
     if ensure_authgen; then
         echo -e "${G}  ✓ Tải xong${N}"
     else
-        echo -e "${Y}  ⚠ Không tải được psiphon-authgen ngay bây giờ — không sao, cài đặt${N}"
-        echo -e "${Y}    vẫn tiếp tục. Panel sẽ tự thử tải lại khi bạn vào menu [6] → [2].${N}"
+        echo -e "${Y} ⚠ Không tải được psiphon-authgen ngay bây giờ — không sao, cài đặt${N}"
+        echo -e "${Y}   vẫn tiếp tục. Panel sẽ tự thử tải lại khi bạn vào menu [6] → [2].${N}"
     fi
 
-    echo -e "${Y}  [4/7] Chọn protocol muốn cài đặt...${N}"
+    echo -e "${Y} [4/7] Chọn protocol muốn cài đặt...${N}"
     sleep 1
     select_protocols_checkbox
 
-    echo -e "${Y}  [5/7] Giới hạn băng thông mặc định...${N}"
+    echo -e "${Y} [5/7] Giới hạn băng thông mặc định...${N}"
     echo -e "  Client KHÔNG có psiphonAuth token sẽ bị giới hạn tốc độ này."
     echo -e "  Client có token hợp lệ (AccessType: $AUTH_ACCESS_TYPE) sẽ được bỏ giới hạn."
     echo -ne "  ${Y}Giới hạn KB/s (0 = không giới hạn) [$DEFAULT_LIMIT_KBPS]: ${N}"
@@ -1695,11 +1695,11 @@ menu_install() {
     [[ "$inp" =~ ^[0-9]+$ ]] && DEFAULT_LIMIT_KBPS="$inp"
     echo -e "${G}  ✓ OK ($DEFAULT_LIMIT_KBPS KB/s)${N}"
 
-    echo -e "${Y}  [6/7] Tạo công cụ hỗ trợ...${N}"
+    echo -e "${Y} [6/7] Tạo công cụ hỗ trợ...${N}"
     create_patch_script
     echo -e "${G}  ✓ OK${N}"
 
-    echo -e "${Y}  [7/7] Cài systemd service...${N}"
+    echo -e "${Y} [7/7] Cài systemd service...${N}"
     create_service
     echo -e "${G}  ✓ OK${N}"
 
@@ -1712,7 +1712,7 @@ menu_install() {
 
     echo ""
     echo -e "${G}  ✓ Cài đặt hoàn tất!${N}"
-    echo -e "${Y}  → Vào menu [2] để generate server entry (có thể đổi protocol bất cứ lúc nào).${N}"
+    echo -e "${Y} → Vào menu [2] để generate server entry (có thể đổi protocol bất cứ lúc nào).${N}"
     echo -e "${C}  → Lần sau gõ: ${W}psiphon-panel${N}${C} để mở lại panel.${N}"
     press_enter
 }
@@ -1762,16 +1762,16 @@ menu_config() {
         echo ""
         warn_all_port_conflicts
         echo -e "  ${Y}🧪 = protocol WebSocket-OSSH thử nghiệm, cần bản psiphond tùy biến${N}"
-        echo -e "  ${Y}   (binary mặc định tải về CHƯA hỗ trợ, generate sẽ lỗi nếu bật).${N}"
+        echo -e "  ${Y}  (binary mặc định tải về CHƯA hỗ trợ, generate sẽ lỗi nếu bật).${N}"
         echo -e "  ${Y}⇄ = không có listener riêng (port chỉ để gắn capability), yêu cầu${N}"
-        echo -e "  ${Y}   $SHARED_MEEK_PORT_PARENT phải đang BẬT thì mới BẬT được — port tự chọn riêng.${N}"
-        echo -e "  ${W}[I]${N} Sửa IP Server    ${W}[W]${N} Sửa Web Port    ${W}[R]${N} Sửa Region"
-        echo -e "  ${W}[B]${N} Bind IP (chỉ cần nếu máy sau NAT/router - VD board tại nhà)${N}: ${G}${BIND_IP:-"(giống IP Server)"}${N}"
-        echo -e "  ${W}[C]${N} Cấu hình Cloudflare Fronting"
-        echo -e "  ${W}[T]${N} Chứng chỉ TLS gốc (Cloudflare Origin CA) cho FRONTED-WSS/MEEK"
-        echo -e "  ${W}[số]${N} Bật/Tắt protocol & sửa port"
-        echo -e "  ${W}[G]${N} Generate Server Entry ngay"
-        echo -e "  ${W}[0]${N} Quay lại"
+        echo -e "  ${Y}  $SHARED_MEEK_PORT_PARENT phải đang BẬT thì mới BẬT được — port tự chọn riêng.${N}"
+        echo -e "  ${C}[I]${N} ${Y}SỬA IP SERVER${N}    ${C}[W]${N} ${Y}SỬA WEB PORT${N}    ${C}[R]${N} ${Y}SỬA REGION${N}"
+        echo -e "  ${C}[B]${N} ${Y}BIND IP${N} (chỉ cần nếu máy sau NAT/router - VD board tại nhà): ${G}${BIND_IP:-"(giống IP Server)"}${N}"
+        echo -e "  ${C}[C]${N} ${Y}CẤU HÌNH CLOUDFLARE FRONTING${N}"
+        echo -e "  ${C}[T]${N} ${Y}CHỨNG CHỈ TLS GỐC (CLOUDFLARE ORIGIN CA) CHO FRONTED-WSS/MEEK${N}"
+        echo -e "  ${C}[số]${N} ${Y}BẬT/TẮT PROTOCOL & SỬA PORT${N}"
+        echo -e "  ${C}[G]${N} ${Y}GENERATE SERVER ENTRY NGAY${N}"
+        echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
         echo ""
         echo -ne "  ${Y}Chọn: ${N}"
         read -r choice
@@ -1796,7 +1796,7 @@ menu_config() {
                 elif [ -n "$inp" ]; then
                     BIND_IP="$inp"
                     echo -e "${G}  ✓ Bind IP: $BIND_IP (quảng bá vẫn dùng IP Server: $SERVER_IP)${N}"
-                    echo -e "${Y}  ⚠ Nhớ cấu hình port forwarding trên router: WAN $SERVER_IP → LAN $BIND_IP${N}"
+                    echo -e "${Y} ⚠ Nhớ cấu hình port forwarding trên router: WAN $SERVER_IP → LAN $BIND_IP${N}"
                 fi
                 save_config; sleep 2 ;;
             R)
@@ -1880,12 +1880,12 @@ browse_file() {
         echo ""
         local i=1
         for d in "${display[@]}"; do
-            echo -e "  ${W}[$i]${N} $d"
+            echo -e "  ${C}[$i]${N} ${Y}$D${N}"
             ((i++))
         done
         echo ""
-        echo -e "  ${W}[P]${N} Gõ tay đường dẫn đầy đủ"
-        echo -e "  ${W}[0]${N} Hủy"
+        echo -e "  ${C}[P]${N} ${Y}GÕ TAY ĐƯỜNG DẪN ĐẦY ĐỦ${N}"
+        echo -e "  ${C}[0]${N} ${Y}HỦY${N}"
         echo ""
         echo -ne "  ${Y}Chọn: ${N}"
         read -r sel
@@ -1938,10 +1938,10 @@ menu_origin_cert() {
         echo -e "  Trạng thái hiện tại: ${Y}Đang dùng cert self-signed (psiphond tự sinh)${N}"
     fi
     echo ""
-    echo -e "  ${W}[1]${N} Nạp cert/key mới từ đường dẫn file trên VPS"
-    echo -e "  ${W}[2]${N} Dán trực tiếp nội dung PEM (cert rồi key)"
-    echo -e "  ${W}[3]${N} Gỡ Origin CA cert, quay lại self-signed"
-    echo -e "  ${W}[0]${N} Quay lại"
+    echo -e "  ${C}[1]${N} ${Y}NẠP CERT/KEY MỚI TỪ ĐƯỜNG DẪN FILE TRÊN VPS${N}"
+    echo -e "  ${C}[2]${N} ${Y}DÁN TRỰC TIẾP NỘI DUNG PEM (CERT RỒI KEY)${N}"
+    echo -e "  ${C}[3]${N} ${Y}GỠ ORIGIN CA CERT, QUAY LẠI SELF-SIGNED${N}"
+    echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
     echo ""
     echo -ne "  ${Y}Chọn: ${N}"
     read -r c
@@ -2041,8 +2041,8 @@ menu_cloudflare() {
     echo -e "  gửi Host header = ${W}CF Domain${N} (domain của bạn đã proxy qua Cloudflare),"
     echo -e "  Cloudflare forward về VPS."
     echo ""
-    echo -e "${Y}  Lưu ý: giá trị này CHỈ để bạn ghi nhớ / dùng cấu hình client thủ công.${N}"
-    echo -e "${Y}  Panel không còn tự vá vào server entry — entry dùng nguyên bản psiphond sinh ra.${N}"
+    echo -e "${Y} Lưu ý: giá trị này CHỈ để bạn ghi nhớ / dùng cấu hình client thủ công.${N}"
+    echo -e "${Y} Panel không còn tự vá vào server entry — entry dùng nguyên bản psiphond sinh ra.${N}"
     echo ""
 
     if [ -n "$CF_DOMAIN" ]; then
@@ -2079,7 +2079,7 @@ menu_cloudflare() {
     echo -e "${G}  ✓ Đã lưu cấu hình Cloudflare!${N}"
     echo -e "  CF Domain (Host)  : ${G}$CF_DOMAIN${N}"
     echo -e "  Fronting Address  : ${G}$CF_IP${N}"
-    echo -e "${Y}  (Chỉ lưu để tham khảo, không tự vá vào server entry)${N}"
+    echo -e "${Y} (Chỉ lưu để tham khảo, không tự vá vào server entry)${N}"
     press_enter
 }
 
@@ -2156,8 +2156,8 @@ warn_port_conflicts() {
     done
     if [ -n "$names" ]; then
         echo -e "  ${Y}⚠ CẢNH BÁO: $proto đang BẬT trùng port $port với: $names${N}"
-        echo -e "  ${Y}  psiphond sẽ LỖI khi generate/start nếu 2 protocol thường cùng${N}"
-        echo -e "  ${Y}  lắng nghe 1 port. Panel KHÔNG tự tắt — bạn tự vào tắt bớt nếu cần.${N}"
+        echo -e "  ${Y} psiphond sẽ LỖI khi generate/start nếu 2 protocol thường cùng${N}"
+        echo -e "  ${Y} lắng nghe 1 port. Panel KHÔNG tự tắt — bạn tự vào tắt bớt nếu cần.${N}"
     fi
 }
 
@@ -2206,17 +2206,17 @@ edit_protocol() {
         if $is_shared; then
             echo ""
             echo -e "  ${Y}ℹ $proto KHÔNG có listener riêng trên server — psiphond không${N}"
-            echo -e "  ${Y}  bind port này, chỉ dùng nó để gắn capability QUIC vào server${N}"
-            echo -e "  ${Y}  entry (client dial QUIC/HTTP-3 tới CDN, CDN forward về server${N}"
-            echo -e "  ${Y}  bạn bằng HTTPS qua $SHARED_MEEK_PORT_PARENT như bình thường).${N}"
-            echo -e "  ${Y}   • Port có thể đặt tùy ý, KHÔNG bắt buộc trùng $SHARED_MEEK_PORT_PARENT.${N}"
-            echo -e "  ${Y}   • Yêu cầu $SHARED_MEEK_PORT_PARENT phải đang BẬT thì mới BẬT được.${N}"
-            echo -e "  ${Y}   • Không cần mở thêm port UDP ở firewall (không có gì lắng nghe ở đó).${N}"
+            echo -e "  ${Y} bind port này, chỉ dùng nó để gắn capability QUIC vào server${N}"
+            echo -e "  ${Y} entry (client dial QUIC/HTTP-3 tới CDN, CDN forward về server${N}"
+            echo -e "  ${Y} bạn bằng HTTPS qua $SHARED_MEEK_PORT_PARENT như bình thường).${N}"
+            echo -e "  ${Y}  • Port có thể đặt tùy ý, KHÔNG bắt buộc trùng $SHARED_MEEK_PORT_PARENT.${N}"
+            echo -e "  ${Y}  • Yêu cầu $SHARED_MEEK_PORT_PARENT phải đang BẬT thì mới BẬT được.${N}"
+            echo -e "  ${Y}  • Không cần mở thêm port UDP ở firewall (không có gì lắng nghe ở đó).${N}"
         fi
         echo ""
-        echo -e "  ${W}[1]${N} Bật/Tắt protocol"
-        echo -e "  ${W}[2]${N} Đổi port ${C}(đổi trực tiếp, không cần tắt rồi bật lại)${N}"
-        echo -e "  ${W}[0]${N} Quay lại"
+        echo -e "  ${C}[1]${N} ${Y}BẬT/TẮT PROTOCOL${N}"
+        echo -e "  ${C}[2]${N} ${Y}ĐỔI PORT ${C}(ĐỔI TRỰC TIẾP, KHÔNG CẦN TẮT RỒI BẬT LẠI)${N}${N}"
+        echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
         echo ""
         echo -ne "  ${Y}Chọn: ${N}"
         read -r c
@@ -2236,15 +2236,15 @@ edit_protocol() {
                     if is_ws_experimental "$proto"; then
                         echo ""
                         echo -e "  ${Y}⚠ $proto là protocol thử nghiệm, chưa có trong binary${N}"
-                        echo -e "  ${Y}  psiphond mặc định tải về từ caothemanh/psiphond.${N}"
-                        echo -e "  ${Y}  Bật + Generate lúc này sẽ LỖI trừ khi bạn đã thay${N}"
-                        echo -e "  ${Y}  binary bằng bản psiphond đã patch hỗ trợ WS-OSSH.${N}"
+                        echo -e "  ${Y} psiphond mặc định tải về từ caothemanh/psiphond.${N}"
+                        echo -e "  ${Y} Bật + Generate lúc này sẽ LỖI trừ khi bạn đã thay${N}"
+                        echo -e "  ${Y} binary bằng bản psiphond đã patch hỗ trợ WS-OSSH.${N}"
                         echo ""
                     fi
                     if $is_shared && ! is_parent_meek_enabled; then
                         echo ""
                         echo -e "  ${R}✗ Chưa thể bật $proto: $SHARED_MEEK_PORT_PARENT đang TẮT.${N}"
-                        echo -e "  ${Y}  Vào bật $SHARED_MEEK_PORT_PARENT trước, rồi quay lại đây.${N}"
+                        echo -e "  ${Y} Vào bật $SHARED_MEEK_PORT_PARENT trước, rồi quay lại đây.${N}"
                         sleep 2
                     else
                         confirm "  Bật $proto?" && {
@@ -2418,7 +2418,7 @@ do_generate() {
     # dễ bị quên đặt vì trước đây field này optional. Không cho generate
     # tiếp cho tới khi có giá trị hợp lệ.
     while [ -z "$REGION" ]; do
-        echo -e "${Y}  Chưa đặt Region cho server này - bắt buộc phải có trước khi generate.${N}"
+        echo -e "${Y} Chưa đặt Region cho server này - bắt buộc phải có trước khi generate.${N}"
         echo -ne "  ${Y}Nhập Region (mã 2 chữ cái, VD: VN, JP, US, SG): ${N}"
         read -r inp
         inp="${inp^^}"
@@ -2431,7 +2431,7 @@ do_generate() {
         fi
     done
 
-    echo -e "${Y}  Protocol sẽ dùng:${N}"
+    echo -e "${Y} Protocol sẽ dùng:${N}"
     local has_ws_experimental=false
     for entry in "${PROTO_LIST[@]}"; do
         local proto port enabled
@@ -2450,8 +2450,8 @@ do_generate() {
     echo ""
     if $has_ws_experimental; then
         echo -e "  ${Y}⚠ Có protocol WebSocket-OSSH thử nghiệm đang bật. Nếu binary${N}"
-        echo -e "  ${Y}  psiphond hiện tại chưa hỗ trợ, lệnh generate bên dưới sẽ${N}"
-        echo -e "  ${Y}  báo lỗi (thường là \"invalid tunnel protocol\").${N}"
+        echo -e "  ${Y} psiphond hiện tại chưa hỗ trợ, lệnh generate bên dưới sẽ${N}"
+        echo -e "  ${Y} báo lỗi (thường là \"invalid tunnel protocol\").${N}"
         echo ""
     fi
     echo -e "  IP     : ${G}$SERVER_IP${N}"
@@ -2586,7 +2586,7 @@ force_cleanup_psiphond() {
     #    "./psiphond run" để test rồi tắt terminal không đúng cách).
     pids=$(pgrep -x psiphond 2>/dev/null)
     if [ -n "$pids" ]; then
-        [ "$quiet" != "1" ] && echo -e "${Y}  Còn tiến trình psiphond cũ (PID: $pids) chưa thoát, gửi SIGTERM...${N}"
+        [ "$quiet" != "1" ] && echo -e "${Y} Còn tiến trình psiphond cũ (PID: $pids) chưa thoát, gửi SIGTERM...${N}"
         kill $pids 2>/dev/null
         sleep 2
     fi
@@ -2641,7 +2641,7 @@ do_start() {
             && echo -e "${G}  ✓ Server đang chạy (PID=$(pgrep -x psiphond))${N}" \
             || { echo -e "${R}  Khởi động thất bại!${N}"; tail -20 "$LOG_FILE"; }
     else
-        echo -e "${Y}  Cần tắt tiến trình đang chiếm port ở trên, hoặc đổi port trong menu [2] rồi generate lại.${N}"
+        echo -e "${Y} Cần tắt tiến trình đang chiếm port ở trên, hoặc đổi port trong menu [2] rồi generate lại.${N}"
         return 1
     fi
 }
@@ -2664,7 +2664,7 @@ do_restart() {
 
     # Fallback: systemctl restart không đủ (ví dụ còn tiến trình mồ côi
     # ngoài quản lý của systemd, do trước đó chạy tay). Dọn sạch rồi start.
-    echo -e "${Y}  systemctl restart chưa đủ, thử dọn tiến trình cũ rồi start lại...${N}"
+    echo -e "${Y} systemctl restart chưa đủ, thử dọn tiến trình cũ rồi start lại...${N}"
     if ! force_cleanup_psiphond; then
         echo -e "${R}  ✗ Không dừng được tiến trình cũ (PID: $old_pid). SERVER ĐANG DỪNG - kiểm tra tay: ps aux | grep psiphond${N}"
         return 1
@@ -2689,7 +2689,7 @@ do_restart() {
 # systemd quản lý) + MỌI tiến trình lạ (không phải psiphond) đang chiếm các
 # port đã cấu hình trong PROTO_LIST/WEB_PORT. Dùng cho menu dọn tay bên dưới.
 list_stale_processes() {
-    echo -e "${Y}  ── Tiến trình psiphond đang chạy ──${N}"
+    echo -e "${Y} ── Tiến trình psiphond đang chạy ──${N}"
     local found_psiphond=0
     if pgrep -x psiphond >/dev/null 2>&1; then
         found_psiphond=1
@@ -2700,7 +2700,7 @@ list_stale_processes() {
     fi
 
     echo ""
-    echo -e "${Y}  ── Tiến trình KHÁC đang chiếm port Psiphon (không phải psiphond) ──${N}"
+    echo -e "${Y} ── Tiến trình KHÁC đang chiếm port Psiphon (không phải psiphond) ──${N}"
     local entry proto port enabled owner found_other=0
     local all_ports="$WEB_PORT"
     for entry in "${PROTO_LIST[@]}"; do
@@ -2735,11 +2735,11 @@ menu_cleanup() {
         list_stale_processes
         echo ""
         echo -e "${C}  ─────────────────────────────────────────────────${N}"
-        echo -e "  ${W}[1]${N} Dọn sạch TẤT CẢ tiến trình psiphond (SIGTERM → SIGKILL)"
-        echo -e "  ${W}[2]${N} Kill theo PID cụ thể"
-        echo -e "  ${W}[3]${N} Kill tiến trình đang chiếm 1 port cụ thể"
-        echo -e "  ${W}[4]${N} Làm mới danh sách"
-        echo -e "  ${W}[0]${N} Quay lại"
+        echo -e "  ${C}[1]${N} ${Y}DỌN SẠCH TẤT CẢ TIẾN TRÌNH PSIPHOND (SIGTERM → SIGKILL)${N}"
+        echo -e "  ${C}[2]${N} ${Y}KILL THEO PID CỤ THỂ${N}"
+        echo -e "  ${C}[3]${N} ${Y}KILL TIẾN TRÌNH ĐANG CHIẾM 1 PORT CỤ THỂ${N}"
+        echo -e "  ${C}[4]${N} ${Y}LÀM MỚI DANH SÁCH${N}"
+        echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
         echo ""
         echo -ne "  ${Y}Chọn: ${N}"
         read -r c
@@ -2938,17 +2938,17 @@ menu_server() {
         echo -e "${W}${BOLD}  [3] QUẢN LÝ SERVER${N}"
         echo -e "${C}  ─────────────────────────────────────────────────${N}"
         echo ""
-        echo -e "  ${W}[1]${N} Khởi động server"
-        echo -e "  ${W}[2]${N} Dừng server"
-        echo -e "  ${W}[3]${N} Restart server"
-        echo -e "  ${W}[4]${N} Xem trạng thái & port đang mở"
-        echo -e "  ${W}[5]${N} Xem log realtime"
-        echo -e "  ${W}[6]${N} Xem 50 dòng log cuối"
-        echo -e "  ${W}[7]${N} Xóa log"
-        echo -e "  ${W}[8]${N} Bật/Tắt tự chạy khi reboot"
-        echo -e "  ${W}[9]${N} Dọn tiến trình cũ (thủ công)"
-        echo -e "  ${W}[D]${N} ${BOLD}Chẩn đoán nhanh (tự động)${N}"
-        echo -e "  ${W}[0]${N} Quay lại"
+        echo -e "  ${C}[1]${N} ${Y}KHỞI ĐỘNG SERVER${N}"
+        echo -e "  ${C}[2]${N} ${Y}DỪNG SERVER${N}"
+        echo -e "  ${C}[3]${N} ${Y}RESTART SERVER${N}"
+        echo -e "  ${C}[4]${N} ${Y}XEM TRẠNG THÁI & PORT ĐANG MỞ${N}"
+        echo -e "  ${C}[5]${N} ${Y}XEM LOG REALTIME${N}"
+        echo -e "  ${C}[6]${N} ${Y}XEM 50 DÒNG LOG CUỐI${N}"
+        echo -e "  ${C}[7]${N} ${Y}XÓA LOG${N}"
+        echo -e "  ${C}[8]${N} ${Y}BẬT/TẮT TỰ CHẠY KHI REBOOT${N}"
+        echo -e "  ${C}[9]${N} ${Y}DỌN TIẾN TRÌNH CŨ (THỦ CÔNG)${N}"
+        echo -e "  ${C}[D]${N} ${Y}${BOLD}CHẨN ĐOÁN NHANH (TỰ ĐỘNG)${N}${N}"
+        echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
         echo ""
         echo -ne "  ${Y}Chọn: ${N}"
         read -r c
@@ -2966,10 +2966,10 @@ menu_server() {
                 echo -e "  Trạng thái: $(run_badge)"
                 echo -e "  PID: $(pgrep -x psiphond || echo 'N/A')"
                 echo ""
-                echo -e "${Y}  Port đang lắng nghe:${N}"
+                echo -e "${Y} Port đang lắng nghe:${N}"
                 ss -tlnp | grep psiphond | awk '{print "  " $0}' || echo "  (không có)"
                 echo ""
-                echo -e "${Y}  Protocol đã cấu hình:${N}"
+                echo -e "${Y} Protocol đã cấu hình:${N}"
                 for entry in "${PROTO_LIST[@]}"; do
                     IFS=':' read -r proto port enabled <<< "$entry"
                     if [ "$enabled" = "true" ]; then
@@ -2980,7 +2980,7 @@ menu_server() {
                 done
                 press_enter ;;
             5)
-                echo -e "${Y}  Ctrl+C để thoát${N}"; sleep 1
+                echo -e "${Y} Ctrl+C để thoát${N}"; sleep 1
                 tail -f "$LOG_FILE" ;;
             6) tail -50 "$LOG_FILE" | less ;;
             7)
@@ -3016,16 +3016,16 @@ menu_entry() {
         press_enter; return
     fi
 
-    echo -e "${Y}  Thông tin server entry:${N}"
+    echo -e "${Y} Thông tin server entry:${N}"
     python3 "$PATCH_SCRIPT" show "$ENTRY_PATCHED" 2>/dev/null | while read -r line; do
         echo -e "  ${G}$line${N}"
     done
 
     echo ""
     echo -e "${C}  ─────────────────────────────────────────────────${N}"
-    echo -e "  ${W}[1]${N} Hiển thị hex (copy vào app)"
-    echo -e "  ${W}[2]${N} Lưu ra file /root/server-entry-export.txt"
-    echo -e "  ${W}[0]${N} Quay lại"
+    echo -e "  ${C}[1]${N} ${Y}HIỂN THỊ HEX (COPY VÀO APP)${N}"
+    echo -e "  ${C}[2]${N} ${Y}LƯU RA FILE /ROOT/SERVER-ENTRY-EXPORT.TXT${N}"
+    echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
     echo ""
     echo -ne "  ${Y}Chọn: ${N}"
     read -r c
@@ -3033,7 +3033,7 @@ menu_entry() {
     case "$c" in
         1)
             echo ""
-            echo -e "${Y}  ── Nội dung hex ──${N}"
+            echo -e "${Y} ── Nội dung hex ──${N}"
             echo ""
             cat "$ENTRY_PATCHED"
             echo ""
@@ -3074,10 +3074,10 @@ menu_firewall() {
         fi
     done
     echo ""
-    echo -e "  ${W}[1]${N} Mở tất cả port Psiphon"
-    echo -e "  ${W}[2]${N} Bật UFW (với SSH port 22)"
-    echo -e "  ${W}[3]${N} Tắt UFW"
-    echo -e "  ${W}[0]${N} Quay lại"
+    echo -e "  ${C}[1]${N} ${Y}MỞ TẤT CẢ PORT PSIPHON${N}"
+    echo -e "  ${C}[2]${N} ${Y}BẬT UFW (VỚI SSH PORT 22)${N}"
+    echo -e "  ${C}[3]${N} ${Y}TẮT UFW${N}"
+    echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
     echo ""
     echo -ne "  ${Y}Chọn: ${N}"
     read -r c
@@ -3137,7 +3137,7 @@ menu_uninstall() {
     # -> người dùng tưởng đã gỡ sạch nhưng dashboard vẫn truy cập được bình
     # thường. Giờ gỡ luôn nếu có cài.
     if is_webpanel_installed || is_webpanel_running; then
-        echo -e "${Y}  Đang gỡ Web Dashboard...${N}"
+        echo -e "${Y} Đang gỡ Web Dashboard...${N}"
         systemctl disable --now psiphon-dashboard >/dev/null 2>&1
         rm -f "$WEBPANEL_SERVICE_FILE" "$WEBPANEL_ENV"
         rm -rf "$WEBPANEL_DIR"
@@ -3213,7 +3213,7 @@ print_webpanel_access_info() {
         echo -e "  ${C}Link truy cập (copy thẳng vào trình duyệt):${N}"
         echo -e "  ${G}${BOLD}http://$SERVER_IP:$WEBPANEL_PORT${N}"
         echo -e "  ${Y}⚠ Đang mở public qua HTTP (không mã hoá). Chỉ nên dùng tạm/test,${N}"
-        echo -e "  ${Y}  hoặc đặt sau Nginx + HTTPS nếu dùng lâu dài (xem webpanel/README.md).${N}"
+        echo -e "  ${Y} hoặc đặt sau Nginx + HTTPS nếu dùng lâu dài (xem webpanel/README.md).${N}"
     else
         echo -e "  ${C}Dashboard đang chạy nội bộ (an toàn, chưa public):${N} 127.0.0.1:$WEBPANEL_PORT"
         echo -e "  ${C}Truy cập bằng SSH tunnel từ máy cá nhân:${N}"
@@ -3252,11 +3252,11 @@ install_web_dashboard() {
     echo -e "${C}  ─────────────────────────────────────────────────${N}"
     echo ""
 
-    echo -e "${Y}  Cài python3-venv...${N}"
+    echo -e "${Y} Cài python3-venv...${N}"
     apt-get update -qq >/dev/null 2>&1
     apt-get install -y -qq python3 python3-venv python3-pip >/dev/null 2>&1
 
-    echo -e "${Y}  [1/6] Tải mã dashboard...${N}"
+    echo -e "${Y} [1/6] Tải mã dashboard...${N}"
     mkdir -p "$WEBPANEL_DIR/templates"
     local files=(app.py requirements.txt psiphon-dashboard.service templates/index.html templates/login.html)
     for f in "${files[@]}"; do
@@ -3267,7 +3267,7 @@ install_web_dashboard() {
     done
     echo -e "${G}  ✓ OK${N}"
 
-    echo -e "${Y}  [2/6] Cập nhật psiphon-panel.sh lên bản mới nhất...${N}"
+    echo -e "${Y} [2/6] Cập nhật psiphon-panel.sh lên bản mới nhất...${N}"
     if curl -fsSL "$PANEL_URL" -o /usr/local/bin/psiphon-panel.new; then
         if ! cmp -s /usr/local/bin/psiphon-panel.new /usr/local/bin/psiphon-panel 2>/dev/null; then
             mv /usr/local/bin/psiphon-panel.new /usr/local/bin/psiphon-panel
@@ -3286,11 +3286,11 @@ install_web_dashboard() {
             rm -f /usr/local/bin/psiphon-panel.new
         fi
     else
-        echo -e "${Y}  ⚠ Không tải được bản mới, giữ nguyên bản hiện có.${N}"
+        echo -e "${Y} ⚠ Không tải được bản mới, giữ nguyên bản hiện có.${N}"
     fi
     echo -e "${G}  ✓ OK (/usr/local/bin/psiphon-panel)${N}"
 
-    echo -e "${Y}  [3/6] Cài Python venv + dependencies (có thể mất chút thời gian)...${N}"
+    echo -e "${Y} [3/6] Cài Python venv + dependencies (có thể mất chút thời gian)...${N}"
     local pybin
     pybin=$(pick_python_bin)
     echo -e "  Dùng interpreter: ${G}$pybin${N} ($($pybin --version 2>&1))"
@@ -3302,7 +3302,7 @@ install_web_dashboard() {
         # Dò đúng version đang dùng rồi cài đúng gói đó.
         local pyver
         pyver=$("$pybin" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        echo -e "${Y}  venv thiếu ensurepip, thử cài python${pyver}-venv...${N}"
+        echo -e "${Y} venv thiếu ensurepip, thử cài python${pyver}-venv...${N}"
         apt-get install -y -qq "python${pyver}-venv" >/dev/null 2>&1
         rm -rf "$WEBPANEL_DIR/venv"
         "$pybin" -m venv "$WEBPANEL_DIR/venv" 2>/tmp/psiphon-venv-err.log
@@ -3310,7 +3310,7 @@ install_web_dashboard() {
     if [ ! -x "$WEBPANEL_DIR/venv/bin/pip" ]; then
         echo -e "${R}  ✗ Không tạo được venv (thiếu pip trong venv). Lỗi:${N}"
         sed 's/^/    /' /tmp/psiphon-venv-err.log
-        echo -e "${Y}  Thử cài tay: apt install python${pyver:-3}-venv    rồi vào lại menu này.${N}"
+        echo -e "${Y} Thử cài tay: apt install python${pyver:-3}-venv    rồi vào lại menu này.${N}"
         press_enter; return 1
     fi
     "$WEBPANEL_DIR/venv/bin/pip" install --quiet --upgrade pip
@@ -3319,20 +3319,20 @@ install_web_dashboard() {
         # nào mới hơn, VD VPS không có internet ra ngoài apt mirror chuẩn)
         # -> pip lọc bỏ hết Flask/gunicorn bản mới. Hạ xuống dải version cũ
         # hơn nhưng vẫn còn được hỗ trợ, thay vì fail cứng không cài được gì.
-        echo -e "${Y}  ⚠ Cài bản pin trong requirements.txt thất bại (có thể do Python < 3.8: $($pybin --version 2>&1)).${N}"
-        echo -e "${Y}  Thử lại với dải version cũ hơn, tương thích rộng hơn...${N}"
+        echo -e "${Y} ⚠ Cài bản pin trong requirements.txt thất bại (có thể do Python < 3.8: $($pybin --version 2>&1)).${N}"
+        echo -e "${Y} Thử lại với dải version cũ hơn, tương thích rộng hơn...${N}"
         if ! "$WEBPANEL_DIR/venv/bin/pip" install --quiet "Flask>=2.0,<3" "gunicorn>=20,<21" 2>>/tmp/psiphon-pip-err.log; then
             echo -e "${R}  ✗ Cài dependencies thất bại. Lỗi:${N}"
             sed 's/^/    /' /tmp/psiphon-pip-err.log | tail -20
-            echo -e "${Y}  VPS đang dùng Python quá cũ ($($pybin --version 2>&1)). Cách khắc phục lâu dài:${N}"
-            echo -e "${Y}  apt install python3.10 python3.10-venv   rồi vào lại menu này để dùng bản Python mới hơn.${N}"
+            echo -e "${Y} VPS đang dùng Python quá cũ ($($pybin --version 2>&1)). Cách khắc phục lâu dài:${N}"
+            echo -e "${Y} apt install python3.10 python3.10-venv   rồi vào lại menu này để dùng bản Python mới hơn.${N}"
             press_enter; return 1
         fi
-        echo -e "${Y}  ✓ Đã cài bản Flask/gunicorn cũ hơn (tương thích Python < 3.8). Nên nâng cấp Python khi có dịp.${N}"
+        echo -e "${Y} ✓ Đã cài bản Flask/gunicorn cũ hơn (tương thích Python < 3.8). Nên nâng cấp Python khi có dịp.${N}"
     fi
     echo -e "${G}  ✓ OK${N}"
 
-    echo -e "${Y}  [4/6] Mật khẩu dashboard...${N}"
+    echo -e "${Y} [4/6] Mật khẩu dashboard...${N}"
     local pw_hash secret_key reset_pw
     if [ -f "$WEBPANEL_ENV" ] && grep -q "^DASHBOARD_PASSWORD_HASH=" "$WEBPANEL_ENV" 2>/dev/null; then
         # Đã cài trước đó rồi (đang chạy [1] chỉ để LẤY CODE MỚI, VD sau khi
@@ -3365,7 +3365,7 @@ install_web_dashboard() {
         echo -e "${G}  ✓ OK${N}"
     fi
 
-    echo -e "${Y}  [5/6] Chế độ truy cập...${N}"
+    echo -e "${Y} [5/6] Chế độ truy cập...${N}"
     local bind
     if [ -f "$WEBPANEL_SERVICE_FILE" ]; then
         # Đã có service từ trước - giữ nguyên bind hiện tại, không hỏi lại
@@ -3393,7 +3393,7 @@ EOF
         ufw allow "$WEBPANEL_PORT"/tcp >/dev/null 2>&1
     fi
 
-    echo -e "${Y}  [6/6] Khởi động service...${N}"
+    echo -e "${Y} [6/6] Khởi động service...${N}"
     systemctl daemon-reload
     systemctl enable --now psiphon-dashboard >/dev/null 2>&1
     sleep 1
@@ -3454,18 +3454,18 @@ menu_web_dashboard() {
         if is_webpanel_installed; then
             print_webpanel_access_info
             echo ""
-            echo -e "  ${W}[1]${N} Cài lại / cập nhật dashboard"
-            echo -e "  ${W}[2]${N} Đổi mật khẩu"
-            echo -e "  ${W}[3]${N} Restart dashboard"
-            echo -e "  ${W}[4]${N} Xem log dashboard"
-            echo -e "  ${W}[9]${N} Gỡ dashboard"
+            echo -e "  ${C}[1]${N} ${Y}CÀI LẠI / CẬP NHẬT DASHBOARD${N}"
+            echo -e "  ${C}[2]${N} ${Y}ĐỔI MẬT KHẨU${N}"
+            echo -e "  ${C}[3]${N} ${Y}RESTART DASHBOARD${N}"
+            echo -e "  ${C}[4]${N} ${Y}XEM LOG DASHBOARD${N}"
+            echo -e "  ${C}[9]${N} ${Y}GỠ DASHBOARD${N}"
         else
             echo -e "  ${Y}Chưa cài. Dashboard cho phép điều khiển server qua trình duyệt${N}"
             echo -e "  ${Y}(start/stop/restart, xem log, import verification key...).${N}"
             echo ""
-            echo -e "  ${W}[1]${N} Cài đặt Web Dashboard"
+            echo -e "  ${C}[1]${N} ${Y}CÀI ĐẶT WEB DASHBOARD${N}"
         fi
-        echo -e "  ${W}[0]${N} Quay lại"
+        echo -e "  ${C}[0]${N} ${Y}QUAY LẠI${N}"
         echo ""
         echo -ne "  ${Y}Chọn: ${N}"
         read -r c
@@ -3485,7 +3485,7 @@ update_panel_self() {
     echo -e "${W}${BOLD}  CẬP NHẬT PANEL${N}"
     echo -e "${C}  ─────────────────────────────────────────────────${N}"
     echo ""
-    echo -e "${Y}  Đang tải bản mới nhất từ:${N} $PANEL_URL"
+    echo -e "${Y} Đang tải bản mới nhất từ:${N} $PANEL_URL"
     if ! curl -fsSL "$PANEL_URL" -o /usr/local/bin/psiphon-panel.new; then
         echo -e "${R}  ✗ Tải thất bại (kiểm tra kết nối mạng).${N}"
         press_enter; return 1
@@ -3507,7 +3507,7 @@ update_panel_self() {
     if is_webpanel_installed; then
         echo ""
         if confirm "  Web Dashboard đang cài - đồng bộ code mới nhất luôn? (chỉ tải code + restart, KHÔNG đụng mật khẩu/cấu hình)"; then
-            echo -e "${Y}  Đang tải code dashboard mới nhất...${N}"
+            echo -e "${Y} Đang tải code dashboard mới nhất...${N}"
             mkdir -p "$WEBPANEL_DIR/templates"
             local f ok=1
             for f in app.py requirements.txt templates/index.html templates/login.html; do

@@ -99,6 +99,7 @@ WEBPANEL_PORT=8088
 # Màu (dùng bản BOLD cho tất cả để chữ hiển thị đậm/to/rõ hơn trên terminal)
 R='\033[1;31m' G='\033[1;32m' Y='\033[1;33m'
 C='\033[1;36m' W='\033[1;37m' N='\033[0m' BOLD='\033[1m'
+BLUE='\033[1;34m' PINK='\033[1;35m' BGRED='\033[41;1;37m'
 
 # ================================================================
 # CONFIG
@@ -323,17 +324,22 @@ confirm() {
 
 header() {
     clear
-    echo -e "${C}╔═══════════════════════════════════════════════════╗${N}"
-    echo -e "${C}║   ${W}${BOLD}⚡ PSIPHON SERVER PANEL v${VERSION}${N}${C}                  ║${N}"
-    echo -e "${C}╠═══════════════════════════════════════════════════╣${N}"
-    printf "${C}║${N}  IP: ${G}%-20s${N}  Status: %-20s${C}║${N}\n" \
-        "$SERVER_IP" "$(run_badge)"
-    printf "${C}║${N}  Install: %-15s  Web Port: ${G}%-14s${N}${C}║${N}\n" \
-        "$(install_badge)" "$WEB_PORT"
+    local cols
+    cols=$(tput cols 2>/dev/null)
+    [ -z "$cols" ] && cols=60
+    [ "$cols" -lt 40 ] && cols=60
+    local line
+    line=$(printf '%*s' "$cols" '' | tr ' ' '═')
+
+    echo -e "${BLUE}${line}${N}"
+    printf "${BGRED} ⚡ PSIPHON SERVER PANEL v%s%*s${N}\n" "$VERSION" "$((cols>34?cols-34:0))" ""
+    echo -e "${BLUE}${line}${N}"
+    printf "  ${PINK}IP:${N} ${W}%-20s${N}  ${PINK}Status:${N} %s\n" "$SERVER_IP" "$(run_badge)"
+    printf "  ${PINK}Install:${N} %-15s  ${PINK}Web Port:${N} ${W}%s${N}\n" "$(install_badge)" "$WEB_PORT"
     if [ -n "$CF_DOMAIN" ]; then
-        printf "${C}║${N}  CF Domain: ${G}%-38s${N}${C}║${N}\n" "$CF_DOMAIN"
+        printf "  ${PINK}CF Domain:${N} ${W}%s${N}\n" "$CF_DOMAIN"
     fi
-    echo -e "${C}╚═══════════════════════════════════════════════════╝${N}"
+    echo -e "${BLUE}${line}${N}"
     echo ""
 }
 
@@ -3530,21 +3536,21 @@ main_menu() {
         load_config
         header
         echo -e "${W}${BOLD}  MENU CHÍNH${N}"
-        echo -e "${C}  ─────────────────────────────────────────────────${N}"
+        echo -e "${BLUE}  ─────────────────────────────────────────────────${N}"
         echo ""
-        echo -e "  ${W}[1]${N} Cài đặt Psiphon Server"
-        echo -e "  ${W}[2]${N} Cấu hình Protocol, Port & Cloudflare Fronting"
-        echo -e "  ${W}[3]${N} Quản lý Server  (start / stop / restart / log)"
-        echo -e "  ${W}[4]${N} Xem & Export Server Entry"
-        echo -e "  ${W}[5]${N} Cấu hình Firewall (UFW)"
-        echo -e "  ${W}[6]${N} Giới hạn băng thông & psiphonAuth"
-        echo -e "  ${W}[7]${N} Web Dashboard $(webpanel_badge)"
-        echo -e "  ${W}[8]${N} Cập nhật Panel (tải bản mới nhất)"
-        echo -e "${C}  ─────────────────────────────────────────────────${N}"
-        echo -e "  ${W}[9]${N} Gỡ cài đặt"
-        echo -e "  ${W}[0]${N} Thoát"
+        echo -e "  ${C}[1]${N} ${Y}Cài đặt Psiphon Server${N}"
+        echo -e "  ${C}[2]${N} ${Y}Cấu hình Protocol, Port & Cloudflare Fronting${N}"
+        echo -e "  ${C}[3]${N} ${Y}Quản lý Server${N}  (start / stop / restart / log)"
+        echo -e "  ${C}[4]${N} ${Y}Xem & Export Server Entry${N}"
+        echo -e "  ${C}[5]${N} ${Y}Cấu hình Firewall (UFW)${N}"
+        echo -e "  ${C}[6]${N} ${Y}Giới hạn băng thông & psiphonAuth${N}"
+        echo -e "  ${C}[7]${N} ${Y}Web Dashboard${N} $(webpanel_badge)"
+        echo -e "  ${C}[8]${N} ${Y}Cập nhật Panel${N} (tải bản mới nhất)"
+        echo -e "${BLUE}  ─────────────────────────────────────────────────${N}"
+        echo -e "  ${C}[9]${N} ${R}Gỡ cài đặt${N}"
+        echo -e "  ${C}[0]${N} ${W}Thoát${N}"
         echo ""
-        echo -ne "  ${Y}Chọn: ${N}"
+        echo -ne "  ${Y}${BOLD}Chọn: ${N}"
         read -r choice
 
         case "$choice" in
